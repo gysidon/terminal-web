@@ -405,6 +405,13 @@ function nodeProps({ option }) {
   return {
     onDblclick() {
       if (option.raw && option.isLeaf) openSession(option.raw);
+      else if (option.raw) {
+        // 双击文件夹：展开 / 收起
+        const k = option.key;
+        expandedKeys.value = expandedKeys.value.includes(k)
+          ? expandedKeys.value.filter((x) => x !== k)
+          : [...expandedKeys.value, k];
+      }
     },
     onContextmenu(e) {
       e.preventDefault();

@@ -131,6 +131,16 @@ export default async function apiRoutes(app) {
       if (!b.name?.trim() || !b.host?.trim() || !b.username?.trim()) {
         return reply.code(400).send({ error: '名称、主机、用户名为必填项' });
       }
+      // 复制场景：避免重复复制产生完全同名的连接，造成「覆盖」错觉（A-副本 / A-副本2 …）
+      let name = b.name.trim();
+      if (b.copy_from != null) {
+        const names = new Set(db.prepare('SELECT name FROM connections').all().map((r) => r.name));
+        if (names.has(name)) {
+          let i = 2;
+          while (names.has(`${name}${i}`)) i++;
+          name = `${name}${i}`;
+        }
+      }
       let passwordEnc = encrypt(b.password ?? '');
       let keyEnc = encrypt(b.private_key ?? '');
       let passphraseEnc = encrypt(b.passphrase ?? '');
@@ -142,14 +152,16 @@ export default async function apiRoutes(app) {
         if (!b.private_key) keyEnc = src.private_key_enc;
         if (!b.passphrase) passphraseEnc = src.passphrase_enc;
       }
+      // 跳板机只接受整数连接 id；文件夹值（f-xx）或非整数一律置空
+      const jumpId = Number.isInteger(b.jump_id) ? b.jump_id : null;
       const r = db.prepare(`INSERT INTO connections
         (name, host, port, username, auth_type, password_enc, private_key_enc, passphrase_enc, folder_id, jump_id, remark)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
         .run(
-          b.name.trim(), b.host.trim(), Number(b.port) || 22, b.username.trim(),
+          name, b.host.trim(), Number(b.port) || 22, b.username.trim(),
           b.auth_type === 'key' ? 'key' : 'password',
           passwordEnc, keyEnc, passphraseEnc,
-          b.folder_id || null, b.jump_id || null, b.remark || null
+          b.folder_id || null, jumpId, b.remark || null
         );
       return sanitizeConnection(getConnectionById(r.lastInsertRowid));
     });
@@ -160,9 +172,12 @@ export default async function apiRoutes(app) {
       if (!old) return reply.code(404).send({ error: '连接不存在' });
       const b = req.body || {};
       if (b.jump_id === id) return reply.code(400).send({ error: '跳板机不能选择自己' });
-      const passwordEnc = b.password !== undefined ? encrypt(b.password) : old.password_enc;
-      const keyEnc = b.private_key !== undefined ? encrypt(b.private_key) : old.private_key_enc;
-      const passphraseEnc = b.passphrase !== undefined ? encrypt(b.passphrase) : old.passphrase_enc;
+      // 密码/私钥/口令留空（空字符串）视为「不修改」，保留原值，避免编辑时误清空凭据
+      const passwordEnc = b.password ? encrypt(b.password) : old.password_enc;
+      const keyEnc = b.private_key ? encrypt(b.private_key) : old.private_key_enc;
+      const passphraseEnc = b.passphrase ? encrypt(b.passphrase) : old.passphrase_enc;
+      // 跳板机只接受整数连接 id；文件夹值（f-xx）或非整数一律置空
+      const jumpId = Number.isInteger(b.jump_id) ? b.jump_id : null;
       db.prepare(`UPDATE connections SET
         name = ?, host = ?, port = ?, username = ?, auth_type = ?,
         password_enc = ?, private_key_enc = ?, passphrase_enc = ?,
@@ -173,7 +188,7 @@ export default async function apiRoutes(app) {
           b.username?.trim() || old.username, b.auth_type === 'key' ? 'key' : 'password',
           passwordEnc, keyEnc, passphraseEnc,
           b.folder_id !== undefined ? (b.folder_id || null) : old.folder_id,
-          b.jump_id !== undefined ? (b.jump_id || null) : old.jump_id,
+          b.jump_id !== undefined ? jumpId : old.jump_id,
           b.remark !== undefined ? b.remark : old.remark,
           id
         );

@@ -231,6 +231,8 @@ async function save() {
   saving.value = true;
   try {
     const body = { ...form.value };
+    // 跳板机只接受连接 id（数字）；文件夹值 f-xx 一律丢弃，避免文件夹被误存为跳板机
+    if (body.jump_id != null && typeof body.jump_id !== 'number') body.jump_id = null;
     if (props.editing) {
       if (!body.password) delete body.password;
       if (!body.private_key) delete body.private_key;
