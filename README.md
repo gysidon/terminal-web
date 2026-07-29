@@ -110,6 +110,34 @@ cd ../server && STATIC_DIR=/绝对路径/web/dist PORT=3000 npm start
 # 然后访问 http://localhost:3000
 ```
 
+## 忘记密码 / 重置管理员密码
+
+如果忘记了登录密码，无需重装或清空数据库，通过命令行即可重置（也适用于新建首个账号）。
+
+**Docker（推荐，容器已挂载数据卷）：**
+
+```bash
+docker compose exec terminal-web node src/reset-password.js admin 你的新密码
+# 或
+docker exec -it terminal-web node src/reset-password.js admin 你的新密码
+```
+
+**本地开发：**
+
+```bash
+cd server
+npm run reset -- admin 你的新密码
+# 等价于 node src/reset-password.js admin 你的新密码
+# 若数据不在默认 ./data，可前置 DATA_DIR=/path/to/data
+```
+
+说明：
+
+- `<用户名>` 为任意已有账号；若该用户不存在，会自动以该用户名新建账号。
+- 新密码至少 6 位（与页面注册 / 修改密码规则一致）。
+- 重置后立即生效，用新密码即可登录；原会话令牌会失效，需重新登录。
+- 登录页底部也提供了同样的操作提示。
+
 ## 数据持久化
 
 所有数据位于 `DATA_DIR`（Docker 下为挂载的 `./data` 卷）：

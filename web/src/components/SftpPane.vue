@@ -234,7 +234,7 @@ const columns = [
         { style: 'display:flex;align-items:center;gap:8px;cursor:pointer', onClick: () => toggleSelect(row.path) },
         [
           h(NIcon, { color, size: 16 }, { default: () => h(icon) }),
-          h('span', { style: row.type === 'dir' ? 'color:#e8e8e8' : 'color:#bbb' }, row.name)
+          h('span', { style: row.type === 'dir' ? 'color:var(--text)' : 'color:var(--text-sub)' }, row.name)
         ]
       );
     }

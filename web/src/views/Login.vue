@@ -20,6 +20,12 @@
           </div>
         </n-form-item>
         <n-button type="primary" block size="large" :loading="loading" @click="doLogin">登 录</n-button>
+
+        <div class="login-hint">
+          <div class="hint-title">忘记密码？</div>
+          <div class="hint-body">自托管部署可通过容器命令重置（支持任意用户，不存在则新建）：</div>
+          <code class="hint-cmd">docker compose exec terminal-web node src/reset-password.js &lt;用户名&gt; &lt;新密码&gt;</code>
+        </div>
       </n-form>
     </div>
   </div>
@@ -146,5 +152,33 @@ onMounted(async () => {
   display: block;
   width: 120px;
   height: 40px;
+}
+.login-hint {
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid #2a2a30;
+  font-size: 12px;
+  color: #888;
+  line-height: 1.6;
+}
+.hint-title {
+  color: #bbb;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+.hint-body {
+  margin-bottom: 8px;
+}
+.hint-cmd {
+  display: block;
+  padding: 8px 10px;
+  background: #0e0e12;
+  border: 1px solid #2a2a30;
+  border-radius: 6px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11px;
+  color: #63e2b7;
+  white-space: pre-wrap;
+  word-break: break-all;
 }
 </style>
