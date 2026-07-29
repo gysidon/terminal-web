@@ -13,6 +13,7 @@ import sftpRoutes from './routes/sftp.js';
 import processRoutes from './routes/process.js';
 import sysinfoRoutes from './routes/sysinfo.js';
 import wsRoutes from './ws.js';
+import backupRoutes from './routes/backup.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT) || 3000;
@@ -45,6 +46,7 @@ await app.register(sftpRoutes);
 await app.register(processRoutes);
 await app.register(sysinfoRoutes);
 await app.register(wsRoutes);
+await app.register(backupRoutes);
 
 const staticDir = process.env.STATIC_DIR || path.resolve(__dirname, '../public');
 if (fs.existsSync(staticDir)) {

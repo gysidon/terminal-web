@@ -1,10 +1,10 @@
-import { verifyToken } from './auth.js';
+import { verifySession, touchSession } from './auth.js';
 import { createSshClient, getConnectionById } from './ssh.js';
 
 export default async function wsRoutes(app) {
   app.get('/ws/terminal/:connId', { websocket: true }, (socket, req) => {
     const token = req.query?.token;
-    const payload = token ? verifyToken(token) : null;
+    const payload = token ? verifySession(token) : null;
     if (!payload) {
       socket.send(JSON.stringify({ type: 'error', message: '未登录或登录已过期' }));
       socket.close();
@@ -68,6 +68,7 @@ export default async function wsRoutes(app) {
       let msg;
       try { msg = JSON.parse(raw.toString()); } catch { return; }
       if (msg.type === 'input' && stream) {
+        if (payload.jti) touchSession(payload.jti); // 严格超时：仅真实按键刷新活跃时间
         stream.write(Buffer.from(msg.data, 'base64'));
       } else if (msg.type === 'resize' && stream) {
         stream.setWindow(msg.rows, msg.cols, 0, 0);

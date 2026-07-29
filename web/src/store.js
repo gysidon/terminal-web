@@ -10,6 +10,8 @@ export const store = reactive({
   loginFailMax: 5,
   loginLockMinutes: 15,
   ipWhitelist: '',
+  sessionTimeout: 0,
+  ssoEnabled: false,
   // 外观
   theme: 'dark',
   fontSize: 13,
@@ -67,7 +69,9 @@ export async function loadSettings() {
       fontFamily: data.font_family,
       loginFailMax: data.login_fail_max,
       loginLockMinutes: data.login_lock_minutes,
-      ipWhitelist: data.ip_whitelist
+      ipWhitelist: data.ip_whitelist,
+      sessionTimeout: data.session_timeout,
+      ssoEnabled: data.sso_enabled
     });
   } catch (e) {
     console.warn('加载设置失败:', errMsg(e));
@@ -84,7 +88,9 @@ export async function saveSettings(payload) {
     fontFamily: data.font_family,
     loginFailMax: data.login_fail_max,
     loginLockMinutes: data.login_lock_minutes,
-    ipWhitelist: data.ip_whitelist
+    ipWhitelist: data.ip_whitelist,
+    sessionTimeout: data.session_timeout,
+    ssoEnabled: data.sso_enabled
   });
   persist();
   applyTheme();

@@ -17,24 +17,35 @@ export const JWT_SECRET = loadOrCreateSecret('.jwt-secret', 'JWT_SECRET');
 
 const KEY = crypto.scryptSync(MASTER_SECRET, 'terminal-web-salt', 32);
 
-export function encrypt(plain) {
+// encrypt/decrypt 支持传入自定义密钥（key 默认为本机主密钥推导的 KEY），用于跨机备份 re-key
+export function encrypt(plain, key = KEY) {
   if (plain === null || plain === undefined || plain === '') return null;
   const iv = crypto.randomBytes(12);
-  const cipher = crypto.createCipheriv('aes-256-gcm', KEY, iv);
+  const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);
   const enc = Buffer.concat([cipher.update(String(plain), 'utf8'), cipher.final()]);
   const tag = cipher.getAuthTag();
   return Buffer.concat([iv, tag, enc]).toString('base64');
 }
 
-export function decrypt(payload) {
+export function decrypt(payload, key = KEY) {
   if (!payload) return null;
   const buf = Buffer.from(payload, 'base64');
   const iv = buf.subarray(0, 12);
   const tag = buf.subarray(12, 28);
   const data = buf.subarray(28);
-  const decipher = crypto.createDecipheriv('aes-256-gcm', KEY, iv);
+  const decipher = crypto.createDecipheriv('aes-256-gcm', key, iv);
   decipher.setAuthTag(tag);
   return Buffer.concat([decipher.update(data), decipher.final()]).toString('utf8');
+}
+
+// 用明文主密钥推导 32 字节密钥（备份文件携带的是主密钥字符串，跨机导入时用它对密文解密）
+export function deriveKey(secret) {
+  return crypto.scryptSync(secret, 'terminal-web-salt', 32);
+}
+
+// 返回本机主密钥（写入备份文件，使备份可跨机还原）
+export function getMasterSecret() {
+  return MASTER_SECRET;
 }
 
 export function hashPassword(password) {

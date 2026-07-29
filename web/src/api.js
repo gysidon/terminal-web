@@ -85,3 +85,45 @@ export async function sysInfo(connId) {
   const { data } = await api.get(`/api/sysinfo/${connId}`);
   return data;
 }
+
+// ===== 备份与恢复 =====
+export async function createBackup() {
+  const { data } = await api.post('/api/backup/create');
+  return data;
+}
+
+export async function listBackups() {
+  const { data } = await api.get('/api/backup/list');
+  return data;
+}
+
+// 触发浏览器下载（带 Authorization 头，用 blob 方式）
+export async function downloadBackup(id, filename) {
+  const { data } = await api.get(`/api/backup/download/${id}`, { responseType: 'blob' });
+  const url = URL.createObjectURL(data);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename || `${id}.json`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+export async function deleteBackup(id) {
+  const { data } = await api.delete(`/api/backup/${id}`);
+  return data;
+}
+
+// 导入外部备份文件（multipart；不显式设置 Content-Type 以保留 axios 自动带的 boundary）
+export async function importBackup(file) {
+  const fd = new FormData();
+  fd.append('file', file);
+  const { data } = await api.post('/api/backup/import', fd);
+  return data;
+}
+
+export async function restoreBackup(id) {
+  const { data } = await api.post(`/api/backup/restore/${id}`);
+  return data;
+}

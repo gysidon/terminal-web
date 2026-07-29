@@ -10,7 +10,9 @@ const SCHEMA = {
   font_family: { type: 'str', default: DEFAULT_FONT },
   login_fail_max: { type: 'int', default: 5 },
   login_lock_minutes: { type: 'int', default: 15 },
-  ip_whitelist: { type: 'str', default: '' }
+  ip_whitelist: { type: 'str', default: '' },
+  session_timeout: { type: 'int', default: 0 },
+  sso_enabled: { type: 'bool', default: false }
 };
 
 export function seedSettings() {

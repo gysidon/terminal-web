@@ -5,6 +5,10 @@ import path from 'node:path';
 const DATA_DIR = process.env.DATA_DIR || path.resolve(process.cwd(), 'data');
 fs.mkdirSync(DATA_DIR, { recursive: true });
 
+// 备份文件目录（Docker 下即 /data/backups，宿主机挂载 ./data/backups）
+const BACKUP_DIR = path.join(DATA_DIR, 'backups');
+fs.mkdirSync(BACKUP_DIR, { recursive: true });
+
 const db = new Database(path.join(DATA_DIR, 'terminal-web.db'));
 db.pragma('journal_mode = WAL');
 db.pragma('foreign_keys = ON');
@@ -57,6 +61,21 @@ CREATE TABLE IF NOT EXISTS audit_logs (
   detail TEXT NOT NULL DEFAULT '',
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
+
+CREATE TABLE IF NOT EXISTS sessions (
+  jti TEXT PRIMARY KEY,
+  uid INTEGER NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  last_activity INTEGER NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS backups (
+  id TEXT PRIMARY KEY,
+  filename TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  size INTEGER NOT NULL DEFAULT 0,
+  meta TEXT
+);
 `);
 
-export { db, DATA_DIR };
+export { db, DATA_DIR, BACKUP_DIR };

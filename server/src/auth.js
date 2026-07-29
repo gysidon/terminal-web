@@ -1,6 +1,8 @@
 import jwt from 'jsonwebtoken';
+import crypto from 'node:crypto';
 import { db } from './db.js';
 import { JWT_SECRET, hashPassword, verifyPassword } from './crypto.js';
+import { getSetting } from './settings.js';
 
 export function isInitialized() {
   const row = db.prepare('SELECT COUNT(*) AS c FROM users').get();
@@ -24,14 +26,16 @@ export function setupAdmin(username, password) {
   if (isInitialized()) return null;
   db.prepare('INSERT INTO users (username, password_hash) VALUES (?, ?)').run(username, hashPassword(password));
   const uid = db.prepare('SELECT id FROM users WHERE username = ?').get(username).id;
-  return jwt.sign({ uid, username }, JWT_SECRET, { expiresIn: '7d' });
+  const jti = createSession(uid);
+  return jwt.sign({ uid, username, jti }, JWT_SECRET, { expiresIn: '7d' });
 }
 
 export function login(username, password) {
   const user = db.prepare('SELECT * FROM users WHERE username = ?').get(username);
   if (!user) return null;
   if (!verifyPassword(password, user.password_hash)) return null;
-  return jwt.sign({ uid: user.id, username: user.username }, JWT_SECRET, { expiresIn: '7d' });
+  const jti = createSession(user.id);
+  return jwt.sign({ uid: user.id, username: user.username, jti }, JWT_SECRET, { expiresIn: '7d' });
 }
 
 export function changePassword(uid, oldPassword, newPassword) {
@@ -49,14 +53,49 @@ export function verifyToken(token) {
   }
 }
 
+// 创建会话并写入 sessions 表；若开启单点登录，先清除该用户所有旧会话
+function createSession(uid) {
+  if (getSetting('sso_enabled')) {
+    db.prepare('DELETE FROM sessions WHERE uid = ?').run(uid);
+  }
+  const jti = crypto.randomBytes(16).toString('hex');
+  db.prepare('INSERT OR REPLACE INTO sessions (jti, uid, created_at, last_activity) VALUES (?, ?, datetime(\'now\'), ?)')
+    .run(jti, uid, Date.now());
+  return jti;
+}
+
+// 校验会话：验证 JWT + 会话存在性 + 无活动超时
+export function verifySession(token) {
+  const payload = verifyToken(token);
+  if (!payload) return null;
+  // 向后兼容：升级前签发的旧 token（无 jti）直接放行，7 天内自然过期
+  if (!payload.jti) return payload;
+  const session = db.prepare('SELECT * FROM sessions WHERE jti = ?').get(payload.jti);
+  if (!session) return null; // 会话不存在（被单点登录清除或已登出）
+  const timeout = getSetting('session_timeout'); // 分钟，0 = 关闭
+  if (timeout && timeout > 0 && Date.now() - session.last_activity > timeout * 60 * 1000) {
+    db.prepare('DELETE FROM sessions WHERE jti = ?').run(payload.jti); // 清理过期会话
+    return null;
+  }
+  return payload;
+}
+
+// 刷新会话活跃时间（REST 请求每次鉴权成功时调用；终端 WS 仅在收到 input 按键时调用）
+export function touchSession(jti) {
+  try {
+    db.prepare('UPDATE sessions SET last_activity = ? WHERE jti = ?').run(Date.now(), jti);
+  } catch {}
+}
+
 export function authHook(req, reply, done) {
   const header = req.headers.authorization || '';
   const token = header.startsWith('Bearer ') ? header.slice(7) : (req.query?.token || '');
-  const payload = verifyToken(token);
+  const payload = verifySession(token);
   if (!payload) {
     reply.code(401).send({ error: '未登录或登录已过期' });
     return;
   }
+  if (payload.jti) touchSession(payload.jti);
   req.user = payload;
   done();
 }
