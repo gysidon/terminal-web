@@ -1,0 +1,31 @@
+<template>
+  <svg
+    :width="size"
+    :height="size"
+    viewBox="0 0 32 32"
+    xmlns="http://www.w3.org/2000/svg"
+    role="img"
+    aria-label="Terminal Web"
+    class="logo-svg"
+  >
+    <defs>
+      <linearGradient id="twLogoBg" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0" stop-color="#22d3ee" />
+        <stop offset="1" stop-color="#3b82f6" />
+      </linearGradient>
+    </defs>
+    <rect x="1" y="1" width="30" height="30" rx="7" fill="url(#twLogoBg)" />
+    <path d="M9 10.5 L14 16 L9 21.5" fill="none" stroke="#0b1020" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" />
+    <rect x="17" y="19.3" width="6.4" height="3.4" rx="1" fill="#4ade80" />
+  </svg>
+</template>
+
+<script setup>
+defineProps({
+  size: { type: [Number, String], default: 20 }
+});
+</script>
+
+<style scoped>
+.logo-svg { display: block; flex-shrink: 0; border-radius: 4px; }
+</style>

@@ -1,0 +1,28 @@
+services:
+  terminal-web:
+    build: .
+    container_name: terminal-web
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./data:/data
+    environment:
+      - TZ=Asia/Shanghai
+      - ADMIN_USERNAME=admin
+      # 首次启动前务必修改管理员密码
+      - ADMIN_PASSWORD=change-me-please
+      # 可选：固定加密密钥（不设置则自动生成并保存在 /data 下）。
+      # 若设置，请务必持久化，修改或丢失会导致已存凭据无法解密、登录会话全部失效。
+      # - ENCRYPTION_KEY=your-32-chars-random-secret
+      # - JWT_SECRET=another-random-secret
+      # 可选：服务监听端口（容器内，默认 3000；修改后需同步上面的 ports 映射）
+      # - PORT=3000
+      # 可选：Web 静态资源目录（容器内默认 /app/public，由镜像构建时写入前端 dist，一般无需改动）
+      # - STATIC_DIR=/app/public
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://127.0.0.1:3000/api/setup/status',r=>process.exit(r.statusCode<500?0:1)).on('error',()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
