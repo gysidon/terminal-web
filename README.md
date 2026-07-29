@@ -1,56 +1,58 @@
+> 🇨🇳 中文文档：[README.zh-CN.md](README.zh-CN.md)
+
 # Terminal Web
 
-> 一个**极简主义的 Web SSH 管理终端** —— 只做最常用的事，没有花里胡哨的东西。
+> A **minimalist web-based SSH management terminal** — it does only the most common things, nothing fancy.
 
-## 项目简介
+## Introduction
 
-Terminal Web 的初衷很简单：做一个干净的、浏览器里就能用的 SSH 终端。
+The original idea behind Terminal Web is simple: a clean SSH terminal that runs right in your browser.
 
-不少同类工具习惯把功能堆得满满当当，可日常用到的，无非是「连上机器、敲命令、传文件、看进程」。Terminal Web 就只围绕这几件事打磨 —— 界面克制、上手即用，不绑定复杂概念，也不强加多余配置。
+Many similar tools pile on features, yet day-to-day use boils down to just a few: connect to a machine, run commands, transfer files, and check processes. Terminal Web focuses only on polishing those tasks — a restrained UI, ready to use out of the box, with no convoluted concepts and no forced extra configuration.
 
-它不追求大而全，只是把「该有的」做得顺手：连接分组管理、多标签终端、SFTP 文件传输、进程与系统状态监控，以及一键 Docker 自托管。
+It doesn't chase breadth. It just makes the "must-haves" feel right: grouped connection management, multi-tab terminals, SFTP file transfer, process and system monitoring, and one-click Docker self-hosting.
 
-## 技术栈
+## Tech Stack
 
-- **前端**：Vue 3 + Vite + Naive UI + xterm.js + Monaco Editor
-- **后端**：Node.js + Fastify + ssh2 + better-sqlite3
-- **部署**：多阶段 Docker 镜像 / docker-compose
+- **Frontend**: Vue 3 + Vite + Naive UI + xterm.js + Monaco Editor
+- **Backend**: Node.js + Fastify + ssh2 + better-sqlite3
+- **Deployment**: Multi-stage Docker image / docker-compose
 
-## 功能特性
+## Features
 
-- 🖥️ **Web SSH 终端**：基于 xterm.js 的多标签终端，支持跳板（堡垒机）级联连接（最多 5 级）。
-- 📁 **文件夹分组**：连接可归入文件夹，左侧树形管理，支持搜索。
-- 🔐 **多种登录方式**：账号密码、私钥证书（支持上传与粘贴），凭据 AES-256-GCM 加密存储。
-- 📂 **SFTP 文件管理**：以主区域 Tab 方式打开，支持上传（带进度条）、下载、重命名、新建、在线编辑（≤2MB 文本）。
-- 📊 **进程管理**：以主区域 Tab 方式打开，查看远程进程列表并支持结束进程。
-- ⚡ **连接延迟探测**：左侧连接列表实时显示 SSH 往返延迟。
-- 🎨 **主题与外观**：暗色 / 亮色主题、字体大小、字体族可配置。
-- 🛡️ **安全增强**：登录验证码开关、登录失败锁定、IP 白名单、登录审计日志。
-- 🐳 **Docker 部署**：多阶段构建镜像，数据卷持久化。
+- 🖥️ **Web SSH terminal**: A multi-tab terminal powered by xterm.js, with jump-host (bastion) cascading connections (up to 5 levels).
+- 📁 **Folder grouping**: Connections can be organized into folders, managed via a left-side tree with search support.
+- 🔐 **Multiple auth methods**: Password and private-key certificates (upload or paste supported), with credentials encrypted using AES-256-GCM.
+- 📂 **SFTP file manager**: Opens as a main-area tab, supporting upload (with progress bar), download, rename, create, and inline editing (text files ≤ 2 MB).
+- 📊 **Process manager**: Opens as a main-area tab, showing the remote process list with the ability to terminate processes.
+- ⚡ **Connection latency probe**: The left-side connection list shows live SSH round-trip latency.
+- 🎨 **Themes & appearance**: Dark / light theme, font size, and font family are all configurable.
+- 🛡️ **Security hardening**: Login CAPTCHA toggle, lockout after failed logins, IP allowlist, and login audit logs.
+- 🐳 **Docker deployment**: Multi-stage image build with persistent data volumes.
 
-## 截图
+## Screenshots
 
-**登录页**
-![登录页](docs/screenshots/login.png)
+**Login page**
+![Login page](docs/screenshots/login.png)
 
-**Web SSH 终端**
-![Web SSH 终端](docs/screenshots/terminal.png)
+**Web SSH terminal**
+![Web SSH terminal](docs/screenshots/terminal.png)
 
-**SFTP 文件管理**
-![SFTP 文件管理](docs/screenshots/file-manager.png)
+**SFTP file manager**
+![SFTP file manager](docs/screenshots/file-manager.png)
 
-**进程管理**
-![进程管理](docs/screenshots/process-manager.png)
+**Process manager**
+![Process manager](docs/screenshots/process-manager.png)
 
-## 快速开始（Docker）
+## Quick Start (Docker)
 
-### 1. 构建镜像
+### 1. Build the image
 
 ```bash
 docker build -t terminal-web .
 ```
 
-### 2. 运行容器
+### 2. Run the container
 
 ```bash
 docker run -d \
@@ -58,105 +60,105 @@ docker run -d \
   -p 3000:3000 \
   -v $(pwd)/data:/data \
   -e ADMIN_USERNAME=admin \
-  -e ADMIN_PASSWORD=你的管理员密码 \
+  -e ADMIN_PASSWORD=your-admin-password \
   terminal-web
 ```
 
-启动后访问 http://localhost:3000 。首次访问若数据为空会进入**初始化设置页**，按提示创建管理员账号即可（也可通过 `ADMIN_PASSWORD` 环境变量在无人值守场景下自动建账号）。
+After starting, open http://localhost:3000. If the data is empty on first visit, you'll be taken to the **initial setup page** — just follow the prompts to create an admin account (you can also set the `ADMIN_PASSWORD` environment variable to auto-create the account for unattended deployments).
 
-### 3. 使用 docker-compose
+### 3. Using docker-compose
 
 ```bash
 docker compose up -d --build
 ```
 
-`docker-compose.yml` 已挂载 `./data:/data` 作为数据卷，并包含 `TZ`、健康检查等配置。请务必修改其中的 `ADMIN_PASSWORD`。
+`docker-compose.yml` already mounts `./data:/data` as a data volume and includes `TZ`, health checks, and other settings. Be sure to change the `ADMIN_PASSWORD` inside it.
 
-## 环境变量
+## Environment Variables
 
-| 变量 | 必填 | 默认值 | 说明 |
+| Variable | Required | Default | Description |
 |---|---|---|---|
-| `ADMIN_USERNAME` | 否 | `admin` | 管理员用户名（仅在设置 `ADMIN_PASSWORD` 时自动建账号） |
-| `ADMIN_PASSWORD` | 否* | — | 管理员密码；设置后首次启动自动创建账号（适合无人值守部署）。不设置则需通过页面初始化设置 |
-| `ENCRYPTION_KEY` | 否 | 自动生成 | 凭据 AES 加密密钥（32 字节随机串）。**建议固定并持久化**，丢失或更改会导致已存凭据无法解密 |
-| `JWT_SECRET` | 否 | 自动生成 | JWT 签发密钥。**建议固定并持久化**，更改会使所有登录会话失效 |
-| `DATA_DIR` | 否 | `/data` | SQLite 数据库与密钥文件存放目录（容器内） |
-| `PORT` | 否 | `3000` | 服务监听端口（容器内） |
-| `STATIC_DIR` | 否 | `/app/public` | 前端静态资源目录（镜像构建时已写入 `web/dist`，一般无需改动） |
-| `TZ` | 否 | `Asia/Shanghai` | 容器时区，影响审计日志时间 |
+| `ADMIN_USERNAME` | No | `admin` | Admin username (only used to auto-create the account when `ADMIN_PASSWORD` is set) |
+| `ADMIN_PASSWORD` | No* | — | Admin password; if set, the account is auto-created on first start (good for unattended deployments). If not set, use the in-page setup |
+| `ENCRYPTION_KEY` | No | Auto-generated | AES encryption key for credentials (32-byte random string). **Recommended to fix and persist** — losing or changing it makes stored credentials undecryptable |
+| `JWT_SECRET` | No | Auto-generated | JWT signing secret. **Recommended to fix and persist** — changing it invalidates all login sessions |
+| `DATA_DIR` | No | `/data` | Directory for the SQLite database and key files (inside the container) |
+| `PORT` | No | `3000` | Service listen port (inside the container) |
+| `STATIC_DIR` | No | `/app/public` | Frontend static assets directory (written to `web/dist` at image build time, usually no need to change) |
+| `TZ` | No | `Asia/Shanghai` | Container timezone, affects audit log timestamps |
 
-> *：生产环境务必设置 `ADMIN_PASSWORD`。不设置时需在页面完成首次初始化设置，初始化仅发生一次（数据卷保留 `users` 表，更新镜像不会重复建账号）。
+> *: You must set `ADMIN_PASSWORD` in production. If not set, complete the first-time setup in the UI. Setup happens only once (the `users` table is kept in the data volume, so updating the image won't recreate the account).
 
-## 本地开发
+## Local Development
 
-需要 Node.js 18+。
+Requires Node.js 18+.
 
 ```bash
-# 后端（终端 1）
+# Backend (terminal 1)
 cd server
 DATA_DIR=./data PORT=3000 ADMIN_PASSWORD=admin123 npm start
 
-# 前端（终端 2）
+# Frontend (terminal 2)
 cd web
 npm install
 npm run dev
 ```
 
-前端开发服务器默认监听 `http://localhost:5173`（注意是 `localhost`，非 `127.0.0.1`）。生产构建：
+The frontend dev server listens on `http://localhost:5173` by default (note: `localhost`, not `127.0.0.1`). For a production build:
 
 ```bash
 cd web && npm run build
-cd ../server && STATIC_DIR=/绝对路径/web/dist PORT=3000 npm start
-# 然后访问 http://localhost:3000
+cd ../server && STATIC_DIR=/absolute/path/web/dist PORT=3000 npm start
+# Then open http://localhost:3000
 ```
 
-## 忘记密码 / 重置管理员密码
+## Forgot Password / Reset Admin Password
 
-如果忘记了登录密码，无需重装或清空数据库，通过命令行即可重置（也适用于新建首个账号）。
+If you forget the login password, there's no need to reinstall or wipe the database — you can reset it from the command line (this also works for creating the first account).
 
-**Docker（推荐，容器已挂载数据卷）：**
+**Docker (recommended, container already has the data volume mounted):**
 
 ```bash
-docker compose exec terminal-web node src/reset-password.js admin 你的新密码
-# 或
-docker exec -it terminal-web node src/reset-password.js admin 你的新密码
+docker compose exec terminal-web node src/reset-password.js admin your-new-password
+# or
+docker exec -it terminal-web node src/reset-password.js admin your-new-password
 ```
 
-**本地开发：**
+**Local development:**
 
 ```bash
 cd server
-npm run reset -- admin 你的新密码
-# 等价于 node src/reset-password.js admin 你的新密码
-# 若数据不在默认 ./data，可前置 DATA_DIR=/path/to/data
+npm run reset -- admin your-new-password
+# equivalent to node src/reset-password.js admin your-new-password
+# if data is not in the default ./data, prefix with DATA_DIR=/path/to/data
 ```
 
-说明：
+Notes:
 
-- `<用户名>` 为任意已有账号；若该用户不存在，会自动以该用户名新建账号。
-- 新密码至少 6 位（与页面注册 / 修改密码规则一致）。
-- 重置后立即生效，用新密码即可登录；原会话令牌会失效，需重新登录。
-- 登录页底部也提供了同样的操作提示。
+- `<username>` can be any existing account; if it doesn't exist, an account with that username is created automatically.
+- The new password must be at least 6 characters (same rule as the in-page register / change-password flow).
+- The reset takes effect immediately — log in with the new password; existing session tokens become invalid and you'll need to log in again.
+- The same instructions are also shown at the bottom of the login page.
 
-## 数据持久化
+## Data Persistence
 
-所有数据位于 `DATA_DIR`（Docker 下为挂载的 `./data` 卷）：
+All data lives under `DATA_DIR` (the mounted `./data` volume under Docker):
 
-- `terminal.db` —— SQLite 数据库（用户、文件夹、连接、设置、审计日志）
-- `.enc-secret` —— 自动生成的凭据加密密钥（若未设置 `ENCRYPTION_KEY`）
+- `terminal.db` — the SQLite database (users, folders, connections, settings, audit logs)
+- `.enc-secret` — the auto-generated credential encryption key (if `ENCRYPTION_KEY` is not set)
 
-**备份只需复制整个 `data` 目录。**
+**To back up, simply copy the entire `data` directory.**
 
-## 目录结构
+## Directory Structure
 
 ```
 .
-├── Dockerfile            # 多阶段构建（前端 build + 后端运行）
-├── docker-compose.yml    # 容器编排
-├── server/               # 后端：Fastify + ssh2 + better-sqlite3
-└── web/                  # 前端：Vue 3 + Vite + Naive UI + xterm.js
+├── Dockerfile            # Multi-stage build (frontend build + backend run)
+├── docker-compose.yml    # Container orchestration
+├── server/               # Backend: Fastify + ssh2 + better-sqlite3
+└── web/                  # Frontend: Vue 3 + Vite + Naive UI + xterm.js
 ```
 
-## 开源协议
+## License
 
-本项目采用 [Apache License 2.0](LICENSE) 开源协议。
+This project is licensed under the [Apache License 2.0](LICENSE).
