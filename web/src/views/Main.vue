@@ -103,9 +103,30 @@
                 <span class="pane-host">{{ s.hostLabel }}</span>
                 <div class="stat-bars" v-if="barsFor(s.connId)">
                   <div class="stat-bar" v-for="b in barsFor(s.connId)" :key="b.label">
-                    <span class="stat-bar-label">{{ b.label }}</span>
-                    <n-progress type="line" :percentage="ringVal(b.value)" :color="ringColor(b.value)" :height="6" :show-indicator="false" class="stat-bar-track" />
-                    <span class="stat-bar-val">{{ b.text }}</span>
+                    <template v-if="b.label === '负载'">
+                      <n-tooltip placement="bottom" :show-arrow="true">
+                        <template #trigger>
+                          <div class="stat-bar-inner">
+                            <span class="stat-bar-label">{{ b.label }}</span>
+                            <n-progress type="line" :percentage="ringVal(b.value)" :color="ringColor(b.value)" :height="6" :show-indicator="false" class="stat-bar-track" />
+                            <span class="stat-bar-val">{{ b.text }}</span>
+                          </div>
+                        </template>
+                        <div class="load-tip">
+                          <div class="load-tip-item" v-for="d in loadTipData(s.connId)" :key="d.label">
+                            <n-progress type="circle" :percentage="d.pct" :color="ringColor(d.pct)" :stroke-width="14" />
+                            <div class="load-tip-meta">
+                              <div class="load-tip-label">{{ d.label }}</div>
+                            </div>
+                          </div>
+                        </div>
+                      </n-tooltip>
+                    </template>
+                    <template v-else>
+                      <span class="stat-bar-label">{{ b.label }}</span>
+                      <n-progress type="line" :percentage="ringVal(b.value)" :color="ringColor(b.value)" :height="6" :show-indicator="false" class="stat-bar-track" />
+                      <span class="stat-bar-val">{{ b.text }}</span>
+                    </template>
                   </div>
                 </div>
                 <span v-else class="stat-loading">统计加载中…</span>
@@ -288,7 +309,7 @@ function barsFor(connId) {
   const i = sysInfoMap.value[connId];
   if (!i) return null;
   const arr = [
-    { label: '负载', value: loadPct(connId), text: fmtLoad(i.load1) },
+    { label: '负载', value: loadPct(connId), text: i.load1 == null ? '—' : loadPct(connId) + '%' },
     { label: 'CPU', value: i.cpu, text: fmtRing(i.cpu) },
     { label: '内存', value: i.mem, text: fmtRing(i.mem) }
   ];
@@ -312,14 +333,24 @@ function ringColor(v) {
 function fmtRing(v) {
   return v == null ? '—' : Math.round(v) + '%';
 }
-function fmtLoad(v) {
-  return v == null ? '—' : Number(v).toFixed(2);
-}
 function loadPct(connId) {
   const i = sysInfoMap.value[connId];
   if (!i || i.load1 == null) return 0;
   const cores = i.cores || 1;
   return Math.max(0, Math.min(100, Math.round((i.load1 / cores) * 100)));
+}
+function loadTipData(connId) {
+  const i = sysInfoMap.value[connId];
+  const cores = i && i.cores ? i.cores : 1;
+  const mk = (label, raw) => ({
+    label,
+    pct: raw == null ? null : Math.max(0, Math.min(100, Math.round((raw / cores) * 100)))
+  });
+  return [
+    mk('1 分钟', i && i.load1),
+    mk('5 分钟', i && i.load5),
+    mk('15 分钟', i && i.load15)
+  ];
 }
 function shortMount(m) {
   if (m === '/' || !m) return '/';
@@ -832,7 +863,16 @@ onUnmounted(() => {
 .stat-bar-label { font-size: 11px; color: var(--text-sub); white-space: nowrap; }
 .stat-bar-track { width: 56px; }
 .stat-bar-val { font-size: 11px; color: var(--text); font-variant-numeric: tabular-nums; min-width: 28px; }
+.stat-bar-inner { display: flex; align-items: center; gap: 6px; cursor: help; }
 .stat-loading { font-size: 11px; color: var(--text-sub); }
+.load-tip { display: flex; gap: 8px; padding: 2px 1px; }
+.load-tip-item { display: flex; flex-direction: column; align-items: center; gap: 3px; }
+.load-tip-meta { text-align: center; }
+.load-tip-label { font-size: 11px; font-weight: 600; color: var(--text); }
+/* n-progress 圆形直径由 CSS 固定为 120px、且无 size 属性，这里用 CSS 覆盖为 40px */
+.load-tip :deep(.n-progress--circle) { width: 40px; }
+.load-tip :deep(.n-progress-graph-circle svg) { width: 40px; height: 40px; display: block; }
+.load-tip :deep(.n-progress-text) { font-size: 14px; }
 .term-modal-body { height: 64vh; display: flex; }
 .term-modal-body .term-wrap { flex: 1; min-height: 0; }
 </style>
