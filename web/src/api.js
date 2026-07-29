@@ -127,3 +127,8 @@ export async function restoreBackup(id) {
   const { data } = await api.post(`/api/backup/restore/${id}`);
   return data;
 }
+
+// 用户主动活动心跳：刷新会话活跃时间（用于登录超时判定）
+export async function activity() {
+  await api.post('/api/activity');
+}

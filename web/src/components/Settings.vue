@@ -85,11 +85,14 @@
       <!-- 备份与恢复 -->
       <n-tab-pane name="backup" tab="备份与恢复">
         <n-alert type="warning" :show-icon="true" style="margin-bottom: 12px">
-          备份文件包含可还原的 SSH 凭据（与主密钥一同打包），等同于明文凭据，请妥善保管、勿外传。
+          备份含可还原的 SSH 凭据（等同明文），请妥善保管、勿外传。
         </n-alert>
         <div class="backup-actions">
-          <n-button type="primary" :loading="creating" @click="onCreate">创建备份</n-button>
-          <n-button :loading="importing" @click="fileInput?.click()">导入外部备份</n-button>
+          <div class="backup-actions-left">
+            <n-button size="small" type="primary" :loading="creating" @click="onCreate">创建备份</n-button>
+            <n-button size="small" :loading="importing" @click="fileInput?.click()">导入外部备份</n-button>
+          </div>
+          <n-button size="small" :loading="refreshing" @click="loadBackups">刷新</n-button>
           <input
             ref="fileInput"
             type="file"
@@ -176,6 +179,7 @@ const auditColumns = [
 const backups = ref([]);
 const creating = ref(false);
 const importing = ref(false);
+const refreshing = ref(false);
 const fileInput = ref(null);
 
 function formatSize(bytes) {
@@ -192,19 +196,21 @@ const backupColumns = [
   {
     title: '操作', key: 'actions', width: 210,
     render: (r) => h('div', { style: 'display:flex; gap:8px' }, [
-      h(NButton, { size: 'small', secondary: true, onClick: () => onDownload(r) }, { default: () => '下载' }),
-      h(NButton, { size: 'small', secondary: true, type: 'warning', onClick: () => onRestore(r) }, { default: () => '恢复' }),
-      h(NButton, { size: 'small', secondary: true, type: 'error', onClick: () => onDelete(r) }, { default: () => '删除' })
+      h(NButton, { size: 'tiny', secondary: true, onClick: () => onDownload(r) }, { default: () => '下载' }),
+      h(NButton, { size: 'tiny', secondary: true, type: 'warning', onClick: () => onRestore(r) }, { default: () => '恢复' }),
+      h(NButton, { size: 'tiny', secondary: true, type: 'error', onClick: () => onDelete(r) }, { default: () => '删除' })
     ])
   }
 ];
 
 async function loadBackups() {
+  refreshing.value = true;
   try {
-    const { data } = await listBackups();
-    backups.value = data;
+    backups.value = await listBackups();
   } catch (e) {
     message.error(errMsg(e));
+  } finally {
+    refreshing.value = false;
   }
 }
 
@@ -327,7 +333,13 @@ async function save() {
 }
 .backup-actions {
   display: flex;
-  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.backup-actions-left {
+  display: flex;
+  gap: 8px;
   align-items: center;
 }
 </style>

@@ -95,7 +95,6 @@ export function authHook(req, reply, done) {
     reply.code(401).send({ error: '未登录或登录已过期' });
     return;
   }
-  if (payload.jti) touchSession(payload.jti);
   req.user = payload;
   done();
 }

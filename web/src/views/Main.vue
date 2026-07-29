@@ -217,7 +217,7 @@ import {
   PulseOutline, PencilOutline, TrashOutline, CreateOutline, BarChartOutline, CopyOutline,
   GlobeOutline, CloseOutline, ArrowBackOutline, ArrowForwardOutline
 } from '@vicons/ionicons5';
-import { api, errMsg, pingConn, sysInfo } from '../api.js';
+import { api, errMsg, pingConn, sysInfo, activity } from '../api.js';
 import ConnForm from '../components/ConnForm.vue';
 import TermPane from '../components/TermPane.vue';
 import SftpPane from '../components/SftpPane.vue';
@@ -748,12 +748,25 @@ watch(collapsed, async (v) => {
   paneRefs.forEach((p) => p?.resize?.());
 });
 
+// 登录超时：仅在用户真实操作时刷新活跃时间（后台轮询 sysInfo/latency 不刷新，避免无限续命）
+let lastActivityAt = 0;
+function markActivity() {
+  const now = Date.now();
+  if (now - lastActivityAt > 30000) {
+    lastActivityAt = now;
+    activity().catch(() => {});
+  }
+}
+
 onMounted(async () => {
   await loadAll();
   await loadSettings();
   restoreSessions();
   latencyTimer = setInterval(refreshAllLatency, 30000);
   startSysInfoPolling();
+  window.addEventListener('click', markActivity);
+  window.addEventListener('keydown', markActivity);
+  window.addEventListener('mousemove', markActivity);
 });
 
 // 切换 tab 或激活终端变为「已连接」时，立即刷新一次统计
@@ -768,6 +781,9 @@ watch(
 onUnmounted(() => {
   clearInterval(latencyTimer);
   clearInterval(sysInfoTimer);
+  window.removeEventListener('click', markActivity);
+  window.removeEventListener('keydown', markActivity);
+  window.removeEventListener('mousemove', markActivity);
 });
 </script>
 

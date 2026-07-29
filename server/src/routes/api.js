@@ -1,6 +1,6 @@
 import { db } from '../db.js';
 import { encrypt } from '../crypto.js';
-import { login, changePassword, authHook, isInitialized, setupAdmin } from '../auth.js';
+import { login, changePassword, authHook, isInitialized, setupAdmin, touchSession } from '../auth.js';
 import { createCaptcha, verifyCaptcha } from '../captcha.js';
 import { getAllSettings, getSetting, putSettings } from '../settings.js';
 import { getClientIp, getLockUntil, recordFail, clearFail, logAudit, recentAudit, isIpAllowed } from '../security.js';
@@ -75,6 +75,13 @@ export default async function apiRoutes(app) {
 
   app.register(async (secured) => {
     secured.addHook('preHandler', authHook);
+
+    // 用户主动活动心跳：刷新会话活跃时间（供登录超时判定）。
+    // 后台轮询（sysinfo/latency）不调用此接口，避免无限续命导致超时失效。
+    secured.post('/api/activity', async (req) => {
+      if (req.user?.jti) touchSession(req.user.jti);
+      return { ok: true };
+    });
 
     secured.get('/api/settings', async () => getAllSettings());
 
