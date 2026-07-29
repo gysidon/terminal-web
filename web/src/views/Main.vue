@@ -153,6 +153,7 @@
     <ConnForm
       v-model:show="showConnForm"
       :editing="editingConn"
+      :prefill="copySource"
       :folders="folders"
       :connections="connections"
       :default-folder-id="formDefaultFolderId"
@@ -192,7 +193,7 @@ import {
   AddOutline, FolderOpenOutline, RefreshOutline, SearchOutline, KeyOutline,
   LogOutOutline, FolderOutline, ServerOutline, TerminalOutline,
   ChevronBackOutline, MenuOutline, SettingsOutline,
-  PulseOutline, PencilOutline, TrashOutline, CreateOutline, BarChartOutline,
+  PulseOutline, PencilOutline, TrashOutline, CreateOutline, BarChartOutline, CopyOutline,
   GlobeOutline, CloseOutline, ArrowBackOutline, ArrowForwardOutline
 } from '@vicons/ionicons5';
 import { api, errMsg, pingConn, sysInfo } from '../api.js';
@@ -222,6 +223,7 @@ const paneRefs = new Map();
 
 const showConnForm = ref(false);
 const editingConn = ref(null);
+const copySource = ref(null);
 const formDefaultFolderId = ref(null);
 
 const showSettings = ref(false);
@@ -414,8 +416,9 @@ function nodeProps({ option }) {
             { label: '进程管理', key: 'process', icon: renderIcon(BarChartOutline) },
             { label: '连通测试', key: 'test', icon: renderIcon(PulseOutline) },
             { type: 'divider', key: 'd1' },
-            { label: '编辑', key: 'edit', icon: renderIcon(PencilOutline) },
-            { label: '删除', key: 'del', icon: renderIcon(TrashOutline) }
+            { label: '复制节点', key: 'copy', icon: renderIcon(CopyOutline) },
+            { label: '编辑节点', key: 'edit', icon: renderIcon(PencilOutline) },
+            { label: '删除节点', key: 'del', icon: renderIcon(TrashOutline) }
           ]
         : [
             { label: '新建连接', key: 'newConn', icon: renderIcon(AddOutline) },
@@ -448,6 +451,10 @@ async function onCtxSelect(key) {
       msgRef.destroy();
       message.error(errMsg(err));
     }
+  } else if (key === 'copy') {
+    copySource.value = raw;
+    editingConn.value = null;
+    showConnForm.value = true;
   } else if (key === 'edit') openConnForm(raw);
   else if (key === 'del') {
     dialog.warning({
@@ -520,6 +527,7 @@ function renameFolder(folder) {
 
 function openConnForm(conn, keepFolder = false) {
   editingConn.value = conn;
+  copySource.value = null;
   if (!keepFolder) formDefaultFolderId.value = conn?.folder_id ?? null;
   showConnForm.value = true;
 }

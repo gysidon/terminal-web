@@ -17,12 +17,15 @@ function buildAuthConfig(conn) {
     keepaliveInterval: 20000,
     keepaliveCountMax: 3
   };
+  // 优先使用表单传入的明文凭据（测试连接场景）；未设置时回落到数据库加密字段解密
+  const password = conn._password !== undefined ? conn._password : (conn.password_enc ? decrypt(conn.password_enc) : undefined);
+  const privateKey = conn._private_key !== undefined ? conn._private_key : (conn.private_key_enc ? decrypt(conn.private_key_enc) : undefined);
+  const passphrase = conn._passphrase !== undefined ? conn._passphrase : (conn.passphrase_enc ? decrypt(conn.passphrase_enc) : undefined);
   if (conn.auth_type === 'key') {
-    cfg.privateKey = decrypt(conn.private_key_enc);
-    const passphrase = decrypt(conn.passphrase_enc);
+    cfg.privateKey = privateKey;
     if (passphrase) cfg.passphrase = passphrase;
   } else {
-    cfg.password = decrypt(conn.password_enc);
+    cfg.password = password;
     cfg.tryKeyboard = true;
   }
   return cfg;
@@ -98,6 +101,36 @@ export async function createSshClient(conn) {
 }
 
 export async function testConnection(conn) {
+  const client = await createSshClient(conn);
+  client.end();
+  return true;
+}
+
+// 用表单（可能尚未保存）传入的明文配置测试连接。
+// 编辑已有连接且凭据字段留空时，自动从已存连接解密补全；支持跳板机（jump 走已存连接）。
+export async function testConnectionConfig(cfg) {
+  const id = cfg.id ? Number(cfg.id) : null;
+  const stored = id ? getConnectionById(id) : null;
+  const auth_type = cfg.auth_type || stored?.auth_type || 'password';
+  let password = cfg.password;
+  let private_key = cfg.private_key;
+  let passphrase = cfg.passphrase;
+  if (stored) {
+    if (!password && stored.password_enc) password = decrypt(stored.password_enc);
+    if (!private_key && stored.private_key_enc) private_key = decrypt(stored.private_key_enc);
+    if (!passphrase && stored.passphrase_enc) passphrase = decrypt(stored.passphrase_enc);
+  }
+  const conn = {
+    id: id ?? -1,
+    host: cfg.host,
+    port: cfg.port || stored?.port || 22,
+    username: cfg.username,
+    auth_type,
+    jump_id: cfg.jump_id ?? stored?.jump_id ?? null,
+    _password: password || undefined,
+    _private_key: private_key || undefined,
+    _passphrase: passphrase || undefined
+  };
   const client = await createSshClient(conn);
   client.end();
   return true;

@@ -75,6 +75,12 @@ export async function pingConn(connId) {
   return data;
 }
 
+// 用表单（可能尚未保存）明文配置测试连接
+export async function testConnConfig(cfg) {
+  const { data } = await api.post('/api/connections/test', cfg);
+  return data;
+}
+
 export async function sysInfo(connId) {
   const { data } = await api.get(`/api/sysinfo/${connId}`);
   return data;

@@ -4,7 +4,7 @@ import { login, changePassword, authHook, isInitialized, setupAdmin } from '../a
 import { createCaptcha, verifyCaptcha } from '../captcha.js';
 import { getAllSettings, getSetting, putSettings } from '../settings.js';
 import { getClientIp, getLockUntil, recordFail, clearFail, logAudit, recentAudit, isIpAllowed } from '../security.js';
-import { testConnection, getConnectionById } from '../ssh.js';
+import { testConnection, getConnectionById, testConnectionConfig } from '../ssh.js';
 import { dropSftp, getClient } from '../sftp-pool.js';
 
 function sanitizeConnection(row) {
@@ -131,13 +131,24 @@ export default async function apiRoutes(app) {
       if (!b.name?.trim() || !b.host?.trim() || !b.username?.trim()) {
         return reply.code(400).send({ error: '名称、主机、用户名为必填项' });
       }
+      let passwordEnc = encrypt(b.password ?? '');
+      let keyEnc = encrypt(b.private_key ?? '');
+      let passphraseEnc = encrypt(b.passphrase ?? '');
+      // 从已有连接复制时，未填写新凭据则复用其加密凭据（凭据不离开服务端、不暴露明文）
+      if (b.copy_from != null) {
+        const src = getConnectionById(Number(b.copy_from));
+        if (!src) return reply.code(404).send({ error: '复制源连接不存在' });
+        if (!b.password) passwordEnc = src.password_enc;
+        if (!b.private_key) keyEnc = src.private_key_enc;
+        if (!b.passphrase) passphraseEnc = src.passphrase_enc;
+      }
       const r = db.prepare(`INSERT INTO connections
         (name, host, port, username, auth_type, password_enc, private_key_enc, passphrase_enc, folder_id, jump_id, remark)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
         .run(
           b.name.trim(), b.host.trim(), Number(b.port) || 22, b.username.trim(),
           b.auth_type === 'key' ? 'key' : 'password',
-          encrypt(b.password), encrypt(b.private_key), encrypt(b.passphrase),
+          passwordEnc, keyEnc, passphraseEnc,
           b.folder_id || null, b.jump_id || null, b.remark || null
         );
       return sanitizeConnection(getConnectionById(r.lastInsertRowid));
@@ -183,6 +194,18 @@ export default async function apiRoutes(app) {
       if (!conn) return reply.code(404).send({ error: '连接不存在' });
       try {
         await testConnection(conn);
+        return { ok: true };
+      } catch (err) {
+        return reply.code(400).send({ error: `连接失败: ${err.message}` });
+      }
+    });
+
+    // 用表单（可能尚未保存）明文配置测试连接，不依赖已落库凭据
+    secured.post('/api/connections/test', async (req, reply) => {
+      const cfg = req.body || {};
+      if (!cfg.host || !cfg.username) return reply.code(400).send({ error: '请填写主机和用户名' });
+      try {
+        await testConnectionConfig(cfg);
         return { ok: true };
       } catch (err) {
         return reply.code(400).send({ error: `连接失败: ${err.message}` });
