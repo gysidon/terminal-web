@@ -14,6 +14,17 @@
 - 🛡️ **安全增强**：登录验证码开关、登录失败锁定、IP 白名单、登录审计日志。
 - 🐳 **Docker 部署**：多阶段构建镜像，数据卷持久化。
 
+## 截图
+
+**Web SSH 终端**
+![Web SSH 终端](docs/screenshots/terminal.png)
+
+**SFTP 文件管理**
+![SFTP 文件管理](docs/screenshots/file-manager.png)
+
+**进程管理**
+![进程管理](docs/screenshots/process-manager.png)
+
 ## 快速开始（Docker）
 
 ### 1. 构建镜像
@@ -100,3 +111,7 @@ cd ../server && STATIC_DIR=/绝对路径/web/dist PORT=3000 npm start
 ├── server/               # 后端：Fastify + ssh2 + better-sqlite3
 └── web/                  # 前端：Vue 3 + Vite + Naive UI + xterm.js
 ```
+
+## 开源协议
+
+本项目采用 [Apache License 2.0](LICENSE) 开源协议。
