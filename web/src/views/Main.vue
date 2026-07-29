@@ -870,9 +870,9 @@ onUnmounted(() => {
 .load-tip-meta { text-align: center; }
 .load-tip-label { font-size: 11px; font-weight: 600; color: var(--text); }
 /* n-progress 圆形直径由 CSS 固定为 120px、且无 size 属性，这里用 CSS 覆盖为 40px */
-.load-tip :deep(.n-progress--circle) { width: 40px; }
-.load-tip :deep(.n-progress-graph-circle svg) { width: 40px; height: 40px; display: block; }
-.load-tip :deep(.n-progress-text) { font-size: 14px; }
+.load-tip :deep(.n-progress--circle) { width: 52px; }
+.load-tip :deep(.n-progress-graph-circle svg) { width: 52px; height: 52px; display: block; }
+.load-tip :deep(.n-progress-text) { font-size: 12px; white-space: nowrap; }
 .term-modal-body { height: 64vh; display: flex; }
 .term-modal-body .term-wrap { flex: 1; min-height: 0; }
 </style>
