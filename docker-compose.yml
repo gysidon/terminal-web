@@ -1,6 +1,9 @@
 services:
   terminal-web:
-    build: .
+    image: registry.cn-chengdu.aliyuncs.com/kintreda/terminal-web:1.0
+    # 直接从阿里云镜像仓库拉取，无需本地 docker build
+    # 如需本地构建镜像，取消下行注释并将上方 image 行注释掉
+    # build: .
     container_name: terminal-web
     restart: unless-stopped
     ports:
