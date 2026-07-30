@@ -1,19 +1,18 @@
-import Database from 'better-sqlite3';
-import fs from 'node:fs';
-import path from 'node:path';
+package db
 
-const DATA_DIR = process.env.DATA_DIR || path.resolve(process.cwd(), 'data');
-fs.mkdirSync(DATA_DIR, { recursive: true });
+import (
+	"database/sql"
+	"fmt"
+	"path/filepath"
 
-// 备份文件目录（Docker 下即 /data/backups，宿主机挂载 ./data/backups）
-const BACKUP_DIR = path.join(DATA_DIR, 'backups');
-fs.mkdirSync(BACKUP_DIR, { recursive: true });
+	"terminal-web/server-go/internal/config"
 
-const db = new Database(path.join(DATA_DIR, 'terminal-web.db'));
-db.pragma('journal_mode = WAL');
-db.pragma('foreign_keys = ON');
+	_ "modernc.org/sqlite"
+)
 
-db.exec(`
+var DB *sql.DB
+
+const schema = `
 CREATE TABLE IF NOT EXISTS users (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   username TEXT NOT NULL UNIQUE,
@@ -76,6 +75,24 @@ CREATE TABLE IF NOT EXISTS backups (
   size INTEGER NOT NULL DEFAULT 0,
   meta TEXT
 );
-`);
+`
 
-export { db, DATA_DIR, BACKUP_DIR };
+// Open 打开（或创建）SQLite 库，开启 WAL 与 foreign_keys，执行建表语句。
+// 使用 DSN pragma 控制并发；SetMaxOpenConns(1) 避免多连接写锁竞争。
+func Open() error {
+	dsn := fmt.Sprintf("file:%s?_pragma=busy_timeout(5000)&_pragma=journal_mode(WAL)&_pragma=foreign_keys(1)",
+		filepath.Join(config.DataDir, "terminal-web.db"))
+	var err error
+	DB, err = sql.Open("sqlite", dsn)
+	if err != nil {
+		return err
+	}
+	DB.SetMaxOpenConns(1)
+	if err := DB.Ping(); err != nil {
+		return err
+	}
+	if _, err := DB.Exec(schema); err != nil {
+		return err
+	}
+	return nil
+}
