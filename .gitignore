@@ -6,7 +6,6 @@ dist/
 
 # 运行时数据（Docker volume 挂载目录，含 SQLite 数据库与密钥）
 data/
-server/data/
 
 # 环境变量 / 密钥
 .env
@@ -27,3 +26,16 @@ yarn-error.log*
 
 # 项目本地数据（连接/凭据等，不进版本库）
 .workbuddy/
+
+# Go 后端
+server-go/data/
+server-go/terminal-web-server
+
+# Tauri 桌面客户端（构建产物与打包结果）
+desktop/src-tauri/target/
+desktop/src-tauri/binaries/
+desktop/src-tauri/gen/
+desktop/TerminalWeb.app/
+*.dmg
+*.msi
+*.exe
