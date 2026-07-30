@@ -1,0 +1,81 @@
+name: Build Desktop
+
+on:
+  push:
+    branches: [feat/desktop-go-tauri]
+    tags: ["v*"]
+  workflow_dispatch:
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            target: nsis
+          - os: windows-latest
+            target: msi
+          - os: macos-latest
+            target: dmg
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.25"
+
+      # 构建 Go 服务端，作为 Tauri sidecar 嵌入安装包。
+      # 二进制放到 desktop/src-tauri/binaries/，由 tauri.conf.json 的
+      # bundle.resources 复制到应用资源目录，main.rs 从 resource_dir/binaries/ 读取。
+      - name: Build Go server sidecar
+        shell: bash
+        run: |
+          mkdir -p desktop/src-tauri/binaries
+          cd server-go
+          GOOS=${{ matrix.os == 'windows-latest' && 'windows' || 'darwin' }} \
+          GOARCH=amd64 \
+          CGO_ENABLED=0 \
+          go build -trimpath -o ../desktop/src-tauri/binaries/terminal-web-server${{ matrix.os == 'windows-latest' && '.exe' || '' }} .
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Build web frontend
+        run: |
+          cd web
+          npm ci
+          npm run build
+
+      # msi 目标依赖 WiX Toolset，Windows runner 默认未安装。
+      - name: Install WiX (msi target only)
+        if: matrix.target == 'msi'
+        run: choco install wixtoolset -y
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: desktop/src-tauri
+
+      - name: Build Tauri app
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          projectPath: desktop
+          args: --target ${{ matrix.target }}
+
+      - name: Upload bundle artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: terminal-web-${{ matrix.target }}
+          path: desktop/src-tauri/target/release/bundle/**/*
+          if-no-files-found: warn
