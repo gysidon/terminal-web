@@ -2,7 +2,7 @@ services:
   terminal-web:
     image: registry.cn-chengdu.aliyuncs.com/kintreda/terminal-web:latest
     # 直接从阿里云镜像仓库拉取 latest 标签镜像，无需本地 docker build
-    # 如需本地构建镜像，取消下行注释并将上方 image 行注释掉
+    # 如需本地构建镜像（当前 Dockerfile 为 Go 版服务端），取消下行注释并将上方 image 行注释掉
     # build: .
     container_name: terminal-web
     restart: unless-stopped
@@ -24,7 +24,8 @@ services:
       # 可选：Web 静态资源目录（容器内默认 /app/public，由镜像构建时写入前端 dist，一般无需改动）
       # - STATIC_DIR=/app/public
     healthcheck:
-      test: ["CMD", "node", "-e", "require('http').get('http://127.0.0.1:3000/api/setup/status',r=>process.exit(r.statusCode<500?0:1)).on('error',()=>process.exit(1))"]
+      # Go 镜像无 node，改用 wget 探活（2xx/3xx 视为健康，4xx/5xx 视为异常）
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/api/setup/status"]
       interval: 30s
       timeout: 5s
       retries: 3

@@ -4,3 +4,7 @@
 .git
 .workbuddy
 *.md
+
+# 桌面客户端与文档不参与服务端镜像构建（避免把 .app / dmg 塞进构建上下文）
+desktop/
+docs/
