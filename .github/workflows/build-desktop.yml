@@ -2,7 +2,7 @@ name: Build Desktop
 
 on:
   push:
-    branches: [feat/desktop-go-tauri]
+    branches: [feat/desktop-go-tauri, dev]
     tags: ["v*"]
   workflow_dispatch:
 
@@ -13,11 +13,11 @@ jobs:
       matrix:
         include:
           - os: windows-latest
-            target: nsis
+            bundle: nsis
           - os: windows-latest
-            target: msi
+            bundle: msi
           - os: macos-latest
-            target: dmg
+            bundle: dmg
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout
@@ -54,7 +54,7 @@ jobs:
 
       # msi 目标依赖 WiX Toolset，Windows runner 默认未安装。
       - name: Install WiX (msi target only)
-        if: matrix.target == 'msi'
+        if: matrix.bundle == 'msi'
         run: choco install wixtoolset -y
 
       - name: Setup Rust
@@ -71,11 +71,11 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           projectPath: desktop
-          args: --target ${{ matrix.target }}
+          args: --bundles ${{ matrix.bundle }}
 
       - name: Upload bundle artifact
         uses: actions/upload-artifact@v4
         with:
-          name: terminal-web-${{ matrix.target }}
+          name: terminal-web-${{ matrix.bundle }}
           path: desktop/src-tauri/target/release/bundle/**/*
           if-no-files-found: warn
