@@ -2,9 +2,17 @@
   <n-config-provider :theme="naiveTheme" :theme-overrides="themeOverrides" :locale="zhCN" :date-locale="dateZhCN">
     <n-message-provider>
       <n-dialog-provider>
-        <Setup v-if="!logged && !initialized" @setup-done="onSetupDone" />
-        <Login v-else-if="!logged" @logged="onLogged" />
-        <Main v-else @logout="onLogout" />
+        <div class="app-root" :class="{ desktop: store.isDesktop }">
+          <DesktopTitleBar v-if="store.isDesktop" :logged="logged" />
+          <div class="app-content">
+            <div v-if="booting" class="boot-loading">正在启动终端客户端…</div>
+            <template v-else>
+              <Setup v-if="!logged && !initialized" @setup-done="onSetupDone" />
+              <Login v-else-if="!logged" @logged="onLogged" />
+              <Main v-else @logout="onLogout" />
+            </template>
+          </div>
+        </div>
       </n-dialog-provider>
     </n-message-provider>
   </n-config-provider>
@@ -16,10 +24,12 @@ import { NConfigProvider, NMessageProvider, NDialogProvider, darkTheme, zhCN, da
 import Login from './views/Login.vue';
 import Main from './views/Main.vue';
 import Setup from './views/Setup.vue';
+import DesktopTitleBar from './components/DesktopTitleBar.vue';
 import { getToken, setToken, setupStatus } from './api.js';
 import { store, loadLocal, loadPublicSettings, applyTheme } from './store.js';
 
-const logged = ref(!!getToken());
+const booting = ref(true);
+const logged = ref(false);
 const initialized = ref(true);
 
 loadLocal();
@@ -60,7 +70,32 @@ function onSetupDone() {
   logged.value = true;
 }
 
+async function bootstrap() {
+  const params = new URLSearchParams(location.search);
+  const boot = params.get('boot');
+  // 桌面模式标记：URL 带 ?boot= 即桌面客户端（安全/登录日志面板在 Settings 中据此隐藏）
+  store.isDesktop = !!boot;
+  if (boot && !getToken()) {
+    try {
+      const resp = await fetch('/api/desktop/session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: boot })
+      });
+      if (resp.ok) {
+        const data = await resp.json();
+        setToken(data.token);
+        logged.value = true;
+      }
+    } catch (e) {
+      // boot token 兑换失败则回退到登录页
+    }
+  }
+  booting.value = false;
+}
+
 onMounted(async () => {
+  await bootstrap();
   try {
     initialized.value = await setupStatus();
   } catch {
@@ -74,6 +109,27 @@ onBeforeUnmount(() => window.removeEventListener('tw-unauthorized', onUnauthoriz
 </script>
 
 <style>
+.boot-loading {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-sub);
+  font-size: 14px;
+}
+.app-root {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+/* naive-ui 的 config-provider 会渲染一层 div，需补齐高度链，否则 .app-root 的 100% 失效 */
+#app > .n-config-provider {
+  height: 100%;
+}
+.app-content {
+  flex: 1;
+  min-height: 0;
+}
 :root,
 [data-theme='dark'] {
   --bg-app: #101014;

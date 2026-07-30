@@ -2,11 +2,12 @@
   <div class="layout">
     <div class="sidebar" :class="{ collapsed }">
       <div class="side-header">
-        <div class="logo-line">
+        <!-- 桌面端：标题栏已有 logo+标题，这里不再重复 -->
+        <div class="logo-line" v-if="!store.isDesktop">
           <LogoIcon :size="20" />
           <span class="logo-text">Terminal Web</span>
         </div>
-        <n-space size="small">
+        <div class="side-actions" :class="{ 'desktop-actions': store.isDesktop }">
           <n-tooltip><template #trigger>
             <n-button quaternary circle size="small" @click="openConnForm(null)">
               <template #icon><n-icon><AddOutline /></n-icon></template>
@@ -27,7 +28,7 @@
               <template #icon><n-icon><ChevronBackOutline /></n-icon></template>
             </n-button>
           </template>收起侧边栏</n-tooltip>
-        </n-space>
+        </div>
       </div>
       <div class="side-search">
         <n-input v-model:value="keyword" size="small" placeholder="搜索名称 / 主机 / 用户" clearable>
@@ -50,7 +51,8 @@
           <n-button size="small" type="primary" @click="openConnForm(null)">+ 新建连接</n-button>
         </div>
       </div>
-      <div class="side-footer">
+      <!-- 桌面端：整块隐藏（免登录无需退出/改密，设置在标题栏） -->
+      <div class="side-footer" v-if="!store.isDesktop">
         <n-button quaternary size="small" @click="showSettings = true">
           <template #icon><n-icon><SettingsOutline /></n-icon></template>设置
         </n-button>
@@ -183,7 +185,7 @@
 
     <Settings v-model:show="showSettings" />
 
-    <n-modal v-model:show="showPwd" preset="dialog" title="修改密码" positive-text="确定" negative-text="取消" @positive-click="doChangePwd">
+    <n-modal v-if="!store.isDesktop" v-model:show="showPwd" preset="dialog" title="修改密码" positive-text="确定" negative-text="取消" @positive-click="doChangePwd">
       <n-form>
         <n-form-item label="原密码"><n-input v-model:value="pwdOld" type="password" show-password-on="click" /></n-form-item>
         <n-form-item label="新密码（至少6位）"><n-input v-model:value="pwdNew" type="password" show-password-on="click" /></n-form-item>
@@ -224,7 +226,7 @@ import SftpPane from '../components/SftpPane.vue';
 import ProcessPane from '../components/ProcessPane.vue';
 import Settings from '../components/Settings.vue';
 import LogoIcon from '../components/LogoIcon.vue';
-import { loadSettings } from '../store.js';
+import { store, loadSettings } from '../store.js';
 
 defineEmits(['logout']);
 const message = useMessage();
@@ -247,7 +249,11 @@ const editingConn = ref(null);
 const copySource = ref(null);
 const formDefaultFolderId = ref(null);
 
-const showSettings = ref(false);
+// 设置抽屉状态放在 store（桌面端标题栏也能打开），此处用 computed 代理保持模板写法不变
+const showSettings = computed({
+  get: () => store.showSettings,
+  set: (v) => { store.showSettings = v; }
+});
 const showPwd = ref(false);
 const pwdOld = ref('');
 const pwdNew = ref('');
@@ -788,7 +794,7 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-.layout { display: flex; height: 100vh; background: var(--bg-app); position: relative; }
+.layout { display: flex; height: 100%; background: var(--bg-app); position: relative; }
 .sidebar {
   width: 288px;
   min-width: 288px;
@@ -810,6 +816,16 @@ onUnmounted(() => {
   padding: 14px 12px 10px;
 }
 .logo-line { display: flex; align-items: center; gap: 8px; }
+.side-actions { display: flex; align-items: center; gap: 8px; }
+/* 桌面端：无 logo，图标占满整行均匀分布，形似工具栏 */
+.side-actions.desktop-actions {
+  flex: 1;
+  justify-content: space-evenly;
+  gap: 0;
+  padding: 2px 4px;
+  border-radius: 8px;
+  background: var(--hover, rgba(127, 127, 127, 0.08));
+}
 .logo-dot { width: 20px; height: 20px; border-radius: 4px; object-fit: contain; }
 .logo-text { font-size: 15px; font-weight: 600; color: var(--text); }
 .side-search { padding: 0 12px 10px; }

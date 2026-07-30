@@ -1,0 +1,32 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "TerminalWeb",
+  "version": "0.1.0",
+  "identifier": "com.terminalweb.desktop",
+  "build": {
+    "frontendDist": "../../web/dist"
+  },
+  "app": {
+    "windows": [],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "resources": {
+      "binaries": "binaries",
+      "../../web/dist": "web-dist"
+    },
+    "shortDescription": "Terminal Web 桌面客户端",
+    "longDescription": "极简 SSH / SFTP 管理终端的桌面客户端，内置本地服务端，免登录直接使用。"
+  }
+}

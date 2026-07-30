@@ -24,7 +24,7 @@
         <div class="login-hint">
           <div class="hint-title">忘记密码？</div>
           <div class="hint-body">自托管部署可通过容器命令重置（支持任意用户，不存在则新建）：</div>
-          <code class="hint-cmd">docker compose exec terminal-web node src/reset-password.js &lt;用户名&gt; &lt;新密码&gt;</code>
+          <code class="hint-cmd">docker compose exec terminal-web /app/server-go -reset-password &lt;用户名&gt; &lt;新密码&gt;</code>
         </div>
       </n-form>
     </div>
@@ -93,7 +93,7 @@ onMounted(async () => {
 
 <style scoped>
 .login-wrap {
-  height: 100vh;
+  height: 100%;
   display: flex;
   align-items: center;
   justify-content: center;

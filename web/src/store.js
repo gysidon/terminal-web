@@ -12,6 +12,10 @@ export const store = reactive({
   ipWhitelist: '',
   sessionTimeout: 0,
   ssoEnabled: false,
+  // 桌面模式标记（由 App.vue 根据 ?boot= 设置）：隐藏「安全」「登录日志」
+  isDesktop: false,
+  // 设置抽屉开关（提升到 store：桌面端标题栏与 Main 侧边栏都能触发）
+  showSettings: false,
   // 外观
   theme: 'dark',
   fontSize: 13,

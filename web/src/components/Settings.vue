@@ -8,8 +8,8 @@
     @after-enter="onOpen"
   >
     <n-tabs type="line" animated>
-      <!-- 安全 -->
-      <n-tab-pane name="security" tab="安全">
+      <!-- 安全（桌面模式隐藏） -->
+      <n-tab-pane v-if="!store.isDesktop" name="security" tab="安全">
         <n-form label-placement="left" :label-width="130">
           <n-form-item label="登录验证码">
             <n-switch v-model:value="form.captchaEnabled">
@@ -67,8 +67,8 @@
         </n-form>
       </n-tab-pane>
 
-      <!-- 审计日志 -->
-      <n-tab-pane name="audit" tab="登录日志">
+      <!-- 审计日志（桌面模式隐藏） -->
+      <n-tab-pane v-if="!store.isDesktop" name="audit" tab="登录日志">
         <div class="audit-head">
           <span class="hint">最近 {{ audit.length }} 条登录记录</span>
           <n-button size="small" secondary @click="loadAudit">刷新</n-button>
