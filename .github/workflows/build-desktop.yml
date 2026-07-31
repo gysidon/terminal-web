@@ -113,22 +113,11 @@ jobs:
           find desktop/src-tauri/target -name 'terminal-web-desktop' -type f 2>/dev/null | head
           echo "::endgroup::"
 
-      # macOS 无 Apple 开发者证书时做 ad-hoc 签名：让二进制在清除 quarantine 后能正常启动。
-      # 若以后配置了 Developer ID（$APPLE_SIGN_IDENTITY + $APPLE_API_* 用于 notarize），
-      # 把这里的 "-" 换成 "$APPLE_SIGN_IDENTITY" 并补 notarize 步骤即可。
-      - name: Ad-hoc code sign (macOS, no cert)
-        if: runner.os == 'macOS'
-        run: |
-          APP=$(find desktop/src-tauri/target -path '*/bundle/macos/*.app' 2>/dev/null | head -1)
-          if [ -z "$APP" ]; then
-            echo "::error::未找到 .app 产物，签名失败。请检查上方 Tauri build 步骤是否成功产出 bundle。"
-            echo "::group::target 目录下的 .app/.dmg"
-            find desktop/src-tauri/target \( -name '*.app' -o -name '*.dmg' \) 2>/dev/null | head -20
-            echo "::endgroup::"
-            exit 1
-          fi
-          echo "Ad-hoc signing: $APP"
-          codesign --force --deep --sign - "$APP"
+      # macOS ad-hoc 签名已在 tauri.conf.json 的 bundle.macOS.signingIdentity: "-" 中配置，
+      # Tauri 打包阶段会自动对 .app 做 ad-hoc 签名，dmg 内嵌 app 一并签好。
+      # 无需事后单独 codesign（打包后 Tauri 会清理中间 .app，事后签名步骤必然找不到文件而失败）。
+      # 若以后配置 Developer ID（$APPLE_SIGN_IDENTITY + $APPLE_API_* 用于 notarize），
+      # 将 tauri.conf.json 中的 "-" 改为 "$APPLE_SIGN_IDENTITY" 并补 notarize 步骤即可。
 
       - name: Upload bundle artifact
         uses: actions/upload-artifact@v4

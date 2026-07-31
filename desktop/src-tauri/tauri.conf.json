@@ -27,7 +27,10 @@
       "../../web/dist": "web-dist"
     },
     "shortDescription": "Terminal Web 桌面客户端",
-    "longDescription": "极简 SSH / SFTP 管理终端的桌面客户端，内置本地服务端，免登录直接使用。"
+    "longDescription": "极简 SSH / SFTP 管理终端的桌面客户端，内置本地服务端，免登录直接使用。",
+    "macOS": {
+      "signingIdentity": "-"
+    }
   },
   "plugins": {
     "fs": {}
