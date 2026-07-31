@@ -228,22 +228,30 @@ async function onCreate() {
   }
 }
 
-async function onFilePicked(e) {
+function onFilePicked(e) {
   const file = e.target.files && e.target.files[0];
   if (!file) return;
   e.target.value = ''; // 允许重复选择同一文件
-  const ok = await dialog.warning({
+  dialog.warning({
     title: '导入外部备份',
     content: '导入将清空现有连接与设置并替换为备份内容，且不可撤销，确认继续？',
     positiveText: '确认导入',
-    negativeText: '取消'
+    negativeText: '取消',
+    // 注意：naive-ui 的 warning/info/success/error 返回的是 DialogReactive 对象（非 Promise），
+    // await 它拿到的永远是 truthy，if(!ok) 无法拦截。必须用 onPositiveClick 回调触发实际动作。
+    onPositiveClick: async () => {
+      importing.value = true;
+      try {
+        await importBackup(file);
+        message.success('导入成功，连接与设置已恢复');
+        loadBackups();
+      } catch (err) {
+        message.error(errMsg(err));
+      } finally {
+        importing.value = false;
+      }
+    }
   });
-  if (!ok) return;
-  importing.value = true;
-  importBackup(file)
-    .then(() => { message.success('导入成功，连接与设置已恢复'); loadBackups(); })
-    .catch((err) => message.error(errMsg(err)))
-    .finally(() => { importing.value = false; });
 }
 
 async function onDownload(r) {
@@ -254,38 +262,40 @@ async function onDownload(r) {
   }
 }
 
-async function onRestore(r) {
-  const ok = await dialog.warning({
+function onRestore(r) {
+  dialog.warning({
     title: '恢复备份',
     content: `将从备份「${r.filename}」恢复数据，现有连接与设置将被覆盖，确认？`,
     positiveText: '恢复',
-    negativeText: '取消'
+    negativeText: '取消',
+    onPositiveClick: async () => {
+      try {
+        await restoreBackup(r.id);
+        message.success('恢复成功');
+        loadBackups();
+      } catch (e) {
+        message.error(errMsg(e));
+      }
+    }
   });
-  if (!ok) return;
-  try {
-    await restoreBackup(r.id);
-    message.success('恢复成功');
-    loadBackups();
-  } catch (e) {
-    message.error(errMsg(e));
-  }
 }
 
-async function onDelete(r) {
-  const ok = await dialog.warning({
+function onDelete(r) {
+  dialog.warning({
     title: '删除备份',
     content: `确认删除备份「${r.filename}」？`,
     positiveText: '删除',
-    negativeText: '取消'
+    negativeText: '取消',
+    onPositiveClick: async () => {
+      try {
+        await deleteBackup(r.id);
+        message.success('已删除');
+        loadBackups();
+      } catch (e) {
+        message.error(errMsg(e));
+      }
+    }
   });
-  if (!ok) return;
-  try {
-    await deleteBackup(r.id);
-    message.success('已删除');
-    loadBackups();
-  } catch (e) {
-    message.error(errMsg(e));
-  }
 }
 
 async function loadAudit() {

@@ -30,8 +30,6 @@
     "longDescription": "极简 SSH / SFTP 管理终端的桌面客户端，内置本地服务端，免登录直接使用。"
   },
   "plugins": {
-    "fs": {
-      "scope": ["**"]
-    }
+    "fs": {}
   }
 }

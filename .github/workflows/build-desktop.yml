@@ -88,6 +88,16 @@ jobs:
           projectPath: desktop
           args: ${{ matrix.target != '' && format('--target {0} --bundles {1}', matrix.target, matrix.bundle) || format('--bundles {0}', matrix.bundle) }}
 
+      # macOS 无 Apple 开发者证书时做 ad-hoc 签名：让二进制在清除 quarantine 后能正常启动。
+      # 若以后配置了 Developer ID（$APPLE_SIGN_IDENTITY + $APPLE_API_* 用于 notarize），
+      # 把这里的 "-" 换成 "$APPLE_SIGN_IDENTITY" 并补 notarize 步骤即可。
+      - name: Ad-hoc code sign (macOS, no cert)
+        if: matrix.target == 'universal-apple-darwin'
+        run: |
+          APP=$(find desktop/src-tauri/target/universal-apple-darwin/release/bundle/macos -maxdepth 1 -name '*.app' | head -1)
+          echo "Ad-hoc signing: $APP"
+          codesign --force --deep --sign - "$APP"
+
       - name: Upload bundle artifact
         uses: actions/upload-artifact@v4
         with:
