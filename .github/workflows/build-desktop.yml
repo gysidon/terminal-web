@@ -92,9 +92,16 @@ jobs:
       # 若以后配置了 Developer ID（$APPLE_SIGN_IDENTITY + $APPLE_API_* 用于 notarize），
       # 把这里的 "-" 换成 "$APPLE_SIGN_IDENTITY" 并补 notarize 步骤即可。
       - name: Ad-hoc code sign (macOS, no cert)
-        if: matrix.target == 'universal-apple-darwin'
+        if: runner.os == 'macOS'
         run: |
-          APP=$(find desktop/src-tauri/target/universal-apple-darwin/release/bundle/macos -maxdepth 1 -name '*.app' | head -1)
+          APP=$(find desktop/src-tauri/target -path '*/bundle/macos/*.app' 2>/dev/null | head -1)
+          if [ -z "$APP" ]; then
+            echo "::error::未找到 .app 产物，签名失败。请检查上方 Tauri build 步骤是否成功产出 bundle。"
+            echo "::group::target 目录下的 .app/.dmg"
+            find desktop/src-tauri/target \( -name '*.app' -o -name '*.dmg' \) 2>/dev/null | head -20
+            echo "::endgroup::"
+            exit 1
+          fi
           echo "Ad-hoc signing: $APP"
           codesign --force --deep --sign - "$APP"
 
