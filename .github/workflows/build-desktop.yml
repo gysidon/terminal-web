@@ -16,8 +16,10 @@ jobs:
             bundle: nsis
           - os: windows-latest
             bundle: msi
+          # macOS 用 universal-apple-darwin 通用二进制，一份 dmg 同时支持 Intel 与 Apple Silicon
           - os: macos-latest
             bundle: dmg
+            target: universal-apple-darwin
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout
@@ -31,15 +33,23 @@ jobs:
       # 构建 Go 服务端，作为 Tauri sidecar 嵌入安装包。
       # 二进制放到 desktop/src-tauri/binaries/，由 tauri.conf.json 的
       # bundle.resources 复制到应用资源目录，main.rs 从 resource_dir/binaries/ 读取。
+      # macOS universal：分别编 arm64 与 amd64，再用 lipo 合并成通用二进制。
       - name: Build Go server sidecar
         shell: bash
         run: |
           mkdir -p desktop/src-tauri/binaries
-          cd server-go
-          GOOS=${{ matrix.os == 'windows-latest' && 'windows' || 'darwin' }} \
-          GOARCH=amd64 \
-          CGO_ENABLED=0 \
-          go build -trimpath -o ../desktop/src-tauri/binaries/terminal-web-server${{ matrix.os == 'windows-latest' && '.exe' || '' }} .
+          if [ "${{ matrix.os }}" = "windows-latest" ]; then
+            GOOS=windows GOARCH=amd64 CGO_ENABLED=0 \
+              go build -trimpath -o desktop/src-tauri/binaries/terminal-web-server.exe .
+          elif [ "${{ matrix.target }}" = "universal-apple-darwin" ]; then
+            GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 go build -trimpath -o /tmp/tw-server-arm64 .
+            GOOS=darwin GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -o /tmp/tw-server-amd64 .
+            lipo -create -output desktop/src-tauri/binaries/terminal-web-server \
+              /tmp/tw-server-arm64 /tmp/tw-server-amd64
+          else
+            GOOS=darwin GOARCH=amd64 CGO_ENABLED=0 \
+              go build -trimpath -o desktop/src-tauri/binaries/terminal-web-server .
+          fi
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -60,6 +70,11 @@ jobs:
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
 
+      # universal 构建需要同时具备两个 Rust 编译目标
+      - name: Add Rust targets (macOS universal)
+        if: matrix.target == 'universal-apple-darwin'
+        run: rustup target add x86_64-apple-darwin aarch64-apple-darwin
+
       - name: Rust cache
         uses: swatinem/rust-cache@v2
         with:
@@ -71,16 +86,17 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           projectPath: desktop
-          args: --bundles ${{ matrix.bundle }}
+          args: ${{ matrix.target != '' && format('--target {0} --bundles {1}', matrix.target, matrix.bundle) || format('--bundles {0}', matrix.bundle) }}
 
       - name: Upload bundle artifact
         uses: actions/upload-artifact@v4
         with:
-          name: terminal-web-${{ matrix.bundle }}
-          path: desktop/src-tauri/target/release/bundle/**/*
+          name: terminal-web-${{ matrix.bundle }}${{ matrix.target != '' && format('-{0}', matrix.target) || '' }}
+          # 开了 --target 后 bundle 路径变为 target/<triple>/release/bundle，用 ** 兼容有无 target 两种情况
+          path: desktop/src-tauri/target/**/release/bundle/**/*
           if-no-files-found: warn
 
-  # 汇总 3 个平台的安装包，创建 GitHub Release。
+  # 汇总各平台安装包，创建 GitHub Release。
   # 仅推送到 prod 分支，或推送 v* 正式 tag 时才发版；dev / PR 分支只构建不发版。
   release:
     if: github.ref_name == 'prod' || startsWith(github.ref, 'refs/tags/v')
