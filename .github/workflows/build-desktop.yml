@@ -2,7 +2,7 @@ name: Build Desktop
 
 on:
   push:
-    branches: [feat/desktop-go-tauri, dev]
+    branches: [prod, dev, feat/desktop-go-tauri]
     tags: ["v*"]
   workflow_dispatch:
 
@@ -79,3 +79,38 @@ jobs:
           name: terminal-web-${{ matrix.bundle }}
           path: desktop/src-tauri/target/release/bundle/**/*
           if-no-files-found: warn
+
+  # 汇总 3 个平台的安装包，创建 GitHub Release。
+  # 仅推送到 prod 分支，或推送 v* 正式 tag 时才发版；dev / PR 分支只构建不发版。
+  release:
+    if: github.ref_name == 'prod' || startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          pattern: terminal-web-*
+          merge-multiple: false
+
+      - name: Determine release tag
+        id: tag
+        shell: bash
+        run: |
+          if [ "${{ github.ref_type }}" = "tag" ]; then
+            echo "tag=${{ github.ref_name }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=nightly-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.tag.outputs.tag }}
+          name: TerminalWeb ${{ steps.tag.outputs.tag }}
+          files: artifacts/**/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
