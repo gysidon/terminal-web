@@ -139,13 +139,52 @@ type backupObj struct {
 	Data  backupData             `json:"data"`
 }
 
+// cleanupOrphans 将指向不存在 id 的外键字段置为 NULL，避免导入后留下悬空引用。
+// 典型场景：旧版/跨版本备份里 folder_id=0、父目录晚于子目录出现、被删文件夹仍被连接引用。
+func cleanupOrphans(data *backupData) {
+	folderIDs := make(map[int]bool, len(data.Folders))
+	for _, f := range data.Folders {
+		folderIDs[f.ID] = true
+	}
+	for i := range data.Folders {
+		if data.Folders[i].ParentID != nil && !folderIDs[*data.Folders[i].ParentID] {
+			data.Folders[i].ParentID = nil
+		}
+	}
+	connIDs := make(map[int]bool, len(data.Connections))
+	for _, c := range data.Connections {
+		connIDs[c.ID] = true
+	}
+	for i := range data.Connections {
+		if data.Connections[i].FolderID != nil && !folderIDs[*data.Connections[i].FolderID] {
+			data.Connections[i].FolderID = nil
+		}
+		if data.Connections[i].JumpID != nil && !connIDs[*data.Connections[i].JumpID] {
+			data.Connections[i].JumpID = nil
+		}
+	}
+}
+
 func applyBackup(obj *backupObj) error {
 	data := obj.Data
+
+	// 导入历史/跨版本备份时，外键引用可能乱序或悬空（如 folder_id=0、子目录先于父目录）。
+	// 先关闭外键约束以保证导入不中断，由 cleanupOrphans 把非法引用置 NULL，
+	// 确保重新开启外键后数据仍然合法。
+	// 注意：SQLite 不允许在事务内修改 foreign_keys，必须在 BEGIN 之前关闭、COMMIT 之后再开启。
+	if _, err := db.DB.Exec("PRAGMA foreign_keys=OFF"); err != nil {
+		return err
+	}
+	defer db.DB.Exec("PRAGMA foreign_keys=ON")
+
 	tx, err := db.DB.Begin()
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback()
+
+	// 清洗孤儿外键引用（folder_id/jump_id/parent_id 指向不存在的 id 时置 NULL）
+	cleanupOrphans(&data)
 
 	if _, err := tx.Exec("DELETE FROM connections"); err != nil {
 		return err
