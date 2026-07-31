@@ -125,7 +125,7 @@
 import { ref, h, computed } from 'vue';
 import {
   NModal, NTabs, NTabPane, NForm, NFormItem, NSwitch, NInputNumber, NInput,
-  NRadioGroup, NRadio, NSlider, NSelect, NButton, NDataTable, NAlert, useMessage
+  NRadioGroup, NRadio, NSlider, NSelect, NButton, NDataTable, NAlert, useMessage, useDialog
 } from 'naive-ui';
 import { store, saveSettings } from '../store.js';
 import {
@@ -136,6 +136,7 @@ import {
 
 const emit = defineEmits(['update:show']);
 const message = useMessage();
+const dialog = useDialog();
 
 const props = defineProps({ show: { type: Boolean, default: false } });
 
@@ -227,11 +228,17 @@ async function onCreate() {
   }
 }
 
-function onFilePicked(e) {
+async function onFilePicked(e) {
   const file = e.target.files && e.target.files[0];
   if (!file) return;
   e.target.value = ''; // 允许重复选择同一文件
-  if (!window.confirm('导入将清空现有连接与设置并替换为备份内容，且不可撤销，确认继续？')) return;
+  const ok = await dialog.warning({
+    title: '导入外部备份',
+    content: '导入将清空现有连接与设置并替换为备份内容，且不可撤销，确认继续？',
+    positiveText: '确认导入',
+    negativeText: '取消'
+  });
+  if (!ok) return;
   importing.value = true;
   importBackup(file)
     .then(() => { message.success('导入成功，连接与设置已恢复'); loadBackups(); })
@@ -248,7 +255,13 @@ async function onDownload(r) {
 }
 
 async function onRestore(r) {
-  if (!window.confirm(`将从备份「${r.filename}」恢复数据，现有连接与设置将被覆盖，确认？`)) return;
+  const ok = await dialog.warning({
+    title: '恢复备份',
+    content: `将从备份「${r.filename}」恢复数据，现有连接与设置将被覆盖，确认？`,
+    positiveText: '恢复',
+    negativeText: '取消'
+  });
+  if (!ok) return;
   try {
     await restoreBackup(r.id);
     message.success('恢复成功');
@@ -259,7 +272,13 @@ async function onRestore(r) {
 }
 
 async function onDelete(r) {
-  if (!window.confirm(`确认删除备份「${r.filename}」？`)) return;
+  const ok = await dialog.warning({
+    title: '删除备份',
+    content: `确认删除备份「${r.filename}」？`,
+    positiveText: '删除',
+    negativeText: '取消'
+  });
+  if (!ok) return;
   try {
     await deleteBackup(r.id);
     message.success('已删除');

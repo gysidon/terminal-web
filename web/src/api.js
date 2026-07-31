@@ -97,17 +97,31 @@ export async function listBackups() {
   return data;
 }
 
-// 触发浏览器下载（带 Authorization 头，用 blob 方式）
-export async function downloadBackup(id, filename) {
-  const { data } = await api.get(`/api/backup/download/${id}`, { responseType: 'blob' });
-  const url = URL.createObjectURL(data);
+// 下载辅助：桌面端走 Tauri 保存对话框 + 写文件；网页端退回 blob 锚点下载
+export async function saveBlobToDisk(blob, defaultPath, filters = [{ name: 'All Files', extensions: ['*'] }]) {
+  if (typeof window !== 'undefined' && ('__TAURI_INTERNALS__' in window || '__TAURI__' in window)) {
+    const { save } = await import('@tauri-apps/plugin-dialog');
+    const { writeFile } = await import('@tauri-apps/plugin-fs');
+    const path = await save({ defaultPath, filters });
+    if (!path) return; // 用户取消
+    const buf = new Uint8Array(await blob.arrayBuffer());
+    await writeFile(path, buf);
+    return;
+  }
+  const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = filename || `${id}.json`;
+  a.download = defaultPath;
   document.body.appendChild(a);
   a.click();
   a.remove();
   URL.revokeObjectURL(url);
+}
+
+// 下载备份文件（带 Authorization 头，用 blob 方式）
+export async function downloadBackup(id, filename) {
+  const { data } = await api.get(`/api/backup/download/${id}`, { responseType: 'blob' });
+  await saveBlobToDisk(data, filename || `${id}.json`, [{ name: 'JSON', extensions: ['json'] }]);
 }
 
 export async function deleteBackup(id) {

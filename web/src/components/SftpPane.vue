@@ -127,7 +127,7 @@ import {
   DocumentOutline, LinkOutline, DownloadOutline, PencilOutline, TrashOutline, DocumentTextOutline,
   AddOutline, MoveOutline, TerminalOutline, CopyOutline
 } from '@vicons/ionicons5';
-import { api, errMsg, getToken } from '../api.js';
+import { api, errMsg, getToken, saveBlobToDisk } from '../api.js';
 import FileEditor from './FileEditor.vue';
 
 const props = defineProps({
@@ -391,12 +391,10 @@ function go(p) {
   refresh();
 }
 
-function download(row) {
+async function download(row) {
   const url = `/api/sftp/${props.connId}/download?path=${encodeURIComponent(row.path)}&token=${encodeURIComponent(getToken())}`;
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = row.name;
-  a.click();
+  const { data } = await api.get(url, { responseType: 'blob' });
+  await saveBlobToDisk(data, row.name);
 }
 
 function openEditor(row) {

@@ -41,7 +41,10 @@ fn extract_field(line: &str, key: &str) -> Option<String> {
 }
 
 fn main() {
-    let builder = tauri::Builder::default().setup(|app| {
+    let builder = tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_fs::init())
+        .setup(|app| {
         // 可移植路径：相对安装目录的资源目录（macOS 为 .app/Contents/Resources，
         // Windows 为安装目录本身），不硬编码本机绝对路径
         let resource_dir = app
