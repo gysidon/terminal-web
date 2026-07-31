@@ -2,7 +2,6 @@ name: Build Desktop
 
 on:
   push:
-    branches: [prod]
     tags: ["v*"]
   workflow_dispatch:
 
@@ -36,19 +35,20 @@ jobs:
       # macOS universal：分别编 arm64 与 amd64，再用 lipo 合并成通用二进制。
       - name: Build Go server sidecar
         shell: bash
+        working-directory: server-go
         run: |
-          mkdir -p desktop/src-tauri/binaries
+          mkdir -p ../desktop/src-tauri/binaries
           if [ "${{ matrix.os }}" = "windows-latest" ]; then
             GOOS=windows GOARCH=amd64 CGO_ENABLED=0 \
-              go build -trimpath -o desktop/src-tauri/binaries/terminal-web-server.exe .
+              go build -trimpath -o ../desktop/src-tauri/binaries/terminal-web-server.exe .
           elif [ "${{ matrix.target }}" = "universal-apple-darwin" ]; then
             GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 go build -trimpath -o /tmp/tw-server-arm64 .
             GOOS=darwin GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -o /tmp/tw-server-amd64 .
-            lipo -create -output desktop/src-tauri/binaries/terminal-web-server \
+            lipo -create -output ../desktop/src-tauri/binaries/terminal-web-server \
               /tmp/tw-server-arm64 /tmp/tw-server-amd64
           else
             GOOS=darwin GOARCH=amd64 CGO_ENABLED=0 \
-              go build -trimpath -o desktop/src-tauri/binaries/terminal-web-server .
+              go build -trimpath -o ../desktop/src-tauri/binaries/terminal-web-server .
           fi
 
       - name: Setup Node
