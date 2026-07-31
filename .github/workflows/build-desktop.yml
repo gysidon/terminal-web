@@ -91,19 +91,26 @@ jobs:
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_CLI_LOG: debug
         with:
           projectPath: desktop
-          args: ${{ matrix.target != '' && format('--target {0} --bundles {1}', matrix.target, matrix.bundle) || format('--bundles {0}', matrix.bundle) }}
+          args: ${{ matrix.target != '' && format('--target {0} --bundles {1} --verbose', matrix.target, matrix.bundle) || format('--bundles {0} --verbose', matrix.bundle) }}
 
-      # 诊断：build 后打印 target 目录结构与产物，确认是否真正产出 bundle（即使上一步失败也运行）
+      # 诊断：build 后打印关键目录与产物，确认是否真正产出 bundle（即使上一步失败也运行）
       - name: Diagnose build output (macOS)
         if: ${{ always() && runner.os == 'macOS' }}
         run: |
-          echo "::group::target 目录结构"
-          find desktop/src-tauri/target -maxdepth 4 -type d 2>/dev/null | head -50
+          echo "::group::universal release 目录（应有终端二进制）"
+          ls -la desktop/src-tauri/target/universal-apple-darwin/release/ 2>/dev/null || echo "(无 universal-apple-darwin/release 目录)"
           echo "::endgroup::"
-          echo "::group::产物 (.app / .dmg / 二进制)"
-          find desktop/src-tauri/target \( -name '*.app' -o -name '*.dmg' -o -name 'terminal-web-desktop' \) 2>/dev/null | head -20
+          echo "::group::universal bundle 目录"
+          find desktop/src-tauri/target/universal-apple-darwin/release/bundle -maxdepth 3 2>/dev/null || echo "(无 bundle 目录)"
+          echo "::endgroup::"
+          echo "::group::全局查找 .app / .dmg / 二进制"
+          find desktop/src-tauri/target \( -name '*.app' -o -name '*.dmg' -o -name 'terminal-web-desktop' -o -name 'TerminalWeb' \) 2>/dev/null | head -30
+          echo "::endgroup::"
+          echo "::group::cargo 原始构建产物（兜底确认二进制是否生成）"
+          find desktop/src-tauri/target -name 'terminal-web-desktop' -type f 2>/dev/null | head
           echo "::endgroup::"
 
       # macOS 无 Apple 开发者证书时做 ad-hoc 签名：让二进制在清除 quarantine 后能正常启动。
