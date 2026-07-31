@@ -80,6 +80,13 @@ jobs:
         with:
           workspaces: desktop/src-tauri
 
+      # tauri-action 执行 Tauri 2 构建依赖 @tauri-apps/cli（JS CLI）。
+      # desktop 项目此前没有 package.json，CI 也未在此安装，导致 build 静默不产出 bundle。
+      - name: Install Tauri CLI (desktop)
+        run: |
+          cd desktop
+          npm install
+
       - name: Build Tauri app
         uses: tauri-apps/tauri-action@v0
         env:
@@ -87,6 +94,17 @@ jobs:
         with:
           projectPath: desktop
           args: ${{ matrix.target != '' && format('--target {0} --bundles {1}', matrix.target, matrix.bundle) || format('--bundles {0}', matrix.bundle) }}
+
+      # 诊断：build 后打印 target 目录结构与产物，确认是否真正产出 bundle（即使上一步失败也运行）
+      - name: Diagnose build output (macOS)
+        if: ${{ always() && runner.os == 'macOS' }}
+        run: |
+          echo "::group::target 目录结构"
+          find desktop/src-tauri/target -maxdepth 4 -type d 2>/dev/null | head -50
+          echo "::endgroup::"
+          echo "::group::产物 (.app / .dmg / 二进制)"
+          find desktop/src-tauri/target \( -name '*.app' -o -name '*.dmg' -o -name 'terminal-web-desktop' \) 2>/dev/null | head -20
+          echo "::endgroup::"
 
       # macOS 无 Apple 开发者证书时做 ad-hoc 签名：让二进制在清除 quarantine 后能正常启动。
       # 若以后配置了 Developer ID（$APPLE_SIGN_IDENTITY + $APPLE_API_* 用于 notarize），
