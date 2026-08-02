@@ -128,6 +128,7 @@ import {
   NRadioGroup, NRadio, NSlider, NSelect, NButton, NDataTable, NAlert, useMessage, useDialog
 } from 'naive-ui';
 import { store, saveSettings } from '../store.js';
+import { bus } from '../events.js';
 import {
   api, errMsg,
   createBackup as createBackupApi, listBackups,
@@ -245,6 +246,7 @@ function onFilePicked(e) {
         await importBackup(file);
         message.success('导入成功，连接与设置已恢复');
         loadBackups();
+        bus.emit('refresh-tree');
       } catch (err) {
         message.error(errMsg(err));
       } finally {
@@ -273,6 +275,7 @@ function onRestore(r) {
         await restoreBackup(r.id);
         message.success('恢复成功');
         loadBackups();
+        bus.emit('refresh-tree');
       } catch (e) {
         message.error(errMsg(e));
       }

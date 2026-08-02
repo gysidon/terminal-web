@@ -19,7 +19,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
+import { ref, computed, nextTick, onMounted, onBeforeUnmount } from 'vue';
 import { NConfigProvider, NMessageProvider, NDialogProvider, darkTheme, zhCN, dateZhCN } from 'naive-ui';
 import Login from './views/Login.vue';
 import Main from './views/Main.vue';
@@ -104,6 +104,12 @@ onMounted(async () => {
   await loadPublicSettings();
   applyTheme();
   window.addEventListener('tw-unauthorized', onUnauthorized);
+  // 桌面端：确保 Vue 完成 DOM 更新（booting=false 的分支渲染完成）后再通知 Rust
+  // 关闭 splashscreen，避免 splash 关闭后用户看到 .boot-loading 或骨架屏。
+  if (store.isDesktop) {
+    await nextTick();
+    import('@tauri-apps/api/event').then((m) => m.emit('app-ready')).catch(() => {});
+  }
 });
 onBeforeUnmount(() => window.removeEventListener('tw-unauthorized', onUnauthorized));
 </script>
@@ -114,6 +120,7 @@ onBeforeUnmount(() => window.removeEventListener('tw-unauthorized', onUnauthoriz
   display: flex;
   align-items: center;
   justify-content: center;
+  background: var(--bg-app);
   color: var(--text-sub);
   font-size: 14px;
 }
@@ -164,6 +171,10 @@ body,
 #app {
   height: 100%;
   margin: 0;
+}
+/* 兜底：html 也铺满主题色，任何内容未绘制/透出的瞬间露出的是主题色而非 WKWebView 默认白 */
+html {
+  background: var(--bg-app);
 }
 body {
   background: var(--bg-app);

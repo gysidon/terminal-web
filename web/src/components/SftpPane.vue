@@ -116,7 +116,7 @@
 </template>
 
 <script setup>
-import { ref, computed, h, onMounted } from 'vue';
+import { ref, computed, h, onMounted, defineAsyncComponent } from 'vue';
 import {
   NSpace, NTag, NBreadcrumb, NBreadcrumbItem, NButton, NIcon,
   NInput, NUpload, NUploadTrigger, NDataTable, NSpin, NProgress, NDropdown, NModal, NDivider,
@@ -128,7 +128,8 @@ import {
   AddOutline, MoveOutline, TerminalOutline, CopyOutline
 } from '@vicons/ionicons5';
 import { api, errMsg, getToken, saveBlobToDisk } from '../api.js';
-import FileEditor from './FileEditor.vue';
+// 文件编辑器按需加载：它连带 monaco 包装层，静态引入会把 monaco chunk 拽进静态依赖图
+const FileEditor = defineAsyncComponent(() => import('./FileEditor.vue'));
 
 const props = defineProps({
   connId: { type: Number, required: true },

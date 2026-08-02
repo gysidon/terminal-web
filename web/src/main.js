@@ -1,11 +1,7 @@
 import { createApp } from 'vue';
 import App from './App.vue';
-import '@xterm/xterm/css/xterm.css';
 
-import * as monaco from 'monaco-editor';
-import { loader } from '@guolao/vue-monaco-editor';
-
-// worker 由 vite-plugin-monaco-editor 自动注入，无需手动配置 MonacoEnvironment
-loader.config({ monaco });
-
+// Monaco 改为按需加载（见 components/FileEditor.vue + monaco-setup.js），
+// xterm 样式随异步组件 TermPane 一起加载（见 components/TermPane.vue），
+// 均不在入口处引入，避免首屏被数 MB 的第三方库拖慢。
 createApp(App).mount('#app');

@@ -9,6 +9,8 @@ import { ref, onMounted, onBeforeUnmount, watch } from 'vue';
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { WebLinksAddon } from '@xterm/addon-web-links';
+// 样式随本异步组件一起加载；若放在入口 main.js 静态引入，会把 xterm chunk 拽进首屏
+import '@xterm/xterm/css/xterm.css';
 import { getToken } from '../api.js';
 import { store } from '../store.js';
 

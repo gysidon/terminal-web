@@ -6,11 +6,65 @@
   <title>Terminal Web - SSH 终端管理</title>
   <style>
     html, body, #app { height: 100%; margin: 0; padding: 0; }
-    body { background: #101014; }
+    /* 首屏主题色板：与 App.vue 保持一致，JS 加载前即可绘制正确底色，避免浅色主题下先闪深色 */
+    :root, [data-theme='dark'] {
+      --bg-app: #101014; --bg-side: #141418; --border: #26262c;
+      --sk-logo: #1f1f24; --sk-line: #1c1c22; --sk-card: #18181c;
+    }
+    [data-theme='light'] {
+      --bg-app: #f5f6f8; --bg-side: #ffffff; --border: #e3e5e8;
+      --sk-logo: #ededf0; --sk-line: #e8eaed; --sk-card: #ffffff;
+    }
+    html, body { background: var(--bg-app); }
+    /* 首屏骨架：JS 执行前即绘制，消除白屏/空洞；Vue 挂载后会被替换 */
+    .boot-skeleton { display: flex; height: 100%; background: var(--bg-app); }
+    /* 桌面端（URL 带 ?boot=）有原生 splashscreen，不需要骨架屏。由下方同步脚本
+       在 <head> 中给 <html> 加 data-boot 属性，CSS 在骨架屏被解析前即将其隐藏。 */
+    html[data-boot] .boot-skeleton { display: none !important; }
+    .sk-side { width: 288px; min-width: 288px; background: var(--bg-side); border-right: 1px solid var(--border); padding: 16px 12px; display: flex; flex-direction: column; gap: 14px; }
+    .sk-logo { width: 36px; height: 36px; border-radius: 8px; background: var(--sk-logo); border: 1px solid var(--border); }
+    .sk-line { height: 14px; border-radius: 6px; background: var(--sk-line); }
+    .sk-line.short { width: 60%; }
+    .sk-main { flex: 1; display: flex; flex-direction: column; }
+    .sk-bar { height: 52px; border-bottom: 1px solid var(--border); background: var(--bg-side); }
+    .sk-content { flex: 1; padding: 24px; display: flex; flex-direction: column; gap: 16px; }
+    .sk-card { height: 120px; border-radius: 10px; background: var(--sk-card); border: 1px solid var(--border); }
   </style>
+  <script>
+    // 首屏即时套用主题：由 Rust 启动端通过 &theme= 传入 URL 参数，优先级最高；
+    // 其次从 localStorage 读取（已登录过的用户设置的），最后默认 dark。
+    // 避免 localStorage 中无数据时骨架屏默认显示深色，导致白色主题下先闪黑。
+    try {
+      var p = new URLSearchParams(location.search);
+      var t = p.get('theme') || (JSON.parse(localStorage.getItem('tw_settings') || '{}').theme) || 'dark';
+      document.documentElement.setAttribute('data-theme', t);
+      // 桌面端（URL 带 ?boot=）有原生 splashscreen 覆盖加载过程，不需要骨架屏。
+      // 给 <html> 加 data-boot 属性，CSS 利用 html[data-boot] 选择器在骨架屏被
+      // 浏览器解析前即将其隐藏（display:none），比 JS remove() 更可靠。
+      if (p.has('boot')) {
+        document.documentElement.setAttribute('data-boot', '');
+      }
+    } catch (e) {}
+  </script>
 </head>
 <body>
-  <div id="app"></div>
+  <div id="app">
+    <div id="boot-skeleton" class="boot-skeleton">
+      <div class="sk-side">
+        <div class="sk-logo"></div>
+        <div class="sk-line"></div>
+        <div class="sk-line short"></div>
+        <div class="sk-line"></div>
+      </div>
+      <div class="sk-main">
+        <div class="sk-bar"></div>
+        <div class="sk-content">
+          <div class="sk-card"></div>
+          <div class="sk-card"></div>
+        </div>
+      </div>
+    </div>
+  </div>
   <script type="module" src="/src/main.js"></script>
 </body>
 </html>

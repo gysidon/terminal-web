@@ -8,7 +8,8 @@ use std::time::Duration;
 
 use url::Url;
 
-use tauri::{Manager, WebviewUrl, WebviewWindowBuilder};
+use tauri::{Listener, Manager, WebviewUrl, WebviewWindowBuilder};
+use tauri::window::Color;
 
 // sidecar 可执行文件相对资源目录的路径：Windows 需要 .exe 后缀
 #[cfg(windows)]
@@ -41,6 +42,44 @@ fn extract_field<'a>(line: &'a str, key: &str) -> Option<&'a str> {
         let end = rest.find(|c: char| c == ',' || c == '}' || c == ' ')?;
         Some(&rest[..end])
     }
+}
+
+// 从内置后端拉取用户在设置里配置的主题（dark/light），用于让启动画面与主窗口
+// 背景跟随主题，而不是写死深色。本地 HTTP，毫秒级；任何失败都兜底 dark。
+fn fetch_theme(port: u16) -> String {
+    use std::io::{Read, Write};
+    use std::net::TcpStream;
+    use std::time::Duration;
+
+    let host = "127.0.0.1";
+    let mut stream = match TcpStream::connect((host, port)) {
+        Ok(s) => s,
+        Err(_) => return "dark".to_string(),
+    };
+    stream
+        .set_read_timeout(Some(Duration::from_millis(800)))
+        .ok();
+    stream
+        .set_write_timeout(Some(Duration::from_millis(800)))
+        .ok();
+    let req = format!(
+        "GET /api/settings/public HTTP/1.1\r\nHost: {host}:{port}\r\nAccept: */*\r\nAccept-Encoding: identity\r\nConnection: close\r\n\r\n"
+    );
+    if stream.write_all(req.as_bytes()).is_err() {
+        return "dark".to_string();
+    }
+    let mut buf = Vec::new();
+    if stream.read_to_end(&mut buf).is_err() {
+        return "dark".to_string();
+    }
+    let body = String::from_utf8_lossy(&buf);
+    if let Some(t) = extract_field(&body, "theme") {
+        let t = t.to_string();
+        if t == "light" || t == "dark" {
+            return t;
+        }
+    }
+    "dark".to_string()
 }
 
 // 把任意字符串做 percent-encode，使其可安全放进 data: URL（#、< 等字符必须编码，
@@ -188,7 +227,19 @@ fn main() {
                     return Ok(());
                 }
             };
-            let url = format!("http://127.0.0.1:{}/?boot={}", port, boot_token);
+            // 读取用户在设置里配置的主题（dark/light），让启动画面与主窗口背景跟随主题，
+            // 而不是写死深色。后端 public 接口返回 theme，异常时兜底 dark。
+            let theme = fetch_theme(port);
+            let theme_bg = if theme == "light" {
+                Color(245, 246, 248, 255)
+            } else {
+                Color(16, 16, 20, 255)
+            };
+
+            let url = format!(
+                "http://127.0.0.1:{}/?boot={}&theme={}",
+                port, boot_token, theme
+            );
             let parsed = match url::Url::parse(&url) {
                 Ok(u) => u,
                 _ => {
@@ -196,17 +247,73 @@ fn main() {
                     return Ok(());
                 }
             };
-            if let Ok(_win) = WebviewWindowBuilder::new(app, "main", WebviewUrl::External(parsed))
+
+            // 1) 先弹原生 splashscreen（纯静态 HTML，零 JS，瞬间绘制）。先创建使其立即渲染，
+            //    设主题背景避免自身 WKWebView 首帧闪白，并把 ?theme= 传给 splash 让它内部的
+            //    spinner/文字也跟随主题（见 web/splashscreen.html）。
+            let splash = match WebviewWindowBuilder::new(
+                app,
+                "splashscreen",
+                WebviewUrl::App(format!("splashscreen.html?theme={}", theme).into()),
+            )
+            .title("Terminal Web")
+            .inner_size(1280.0, 800.0)
+            .decorations(false)
+            .background_color(theme_bg)
+            .build()
+            {
+                Ok(w) => w,
+                Err(_) => {
+                    show_err(
+                        app,
+                        "无法创建启动画面窗口，应用仍可继续使用。",
+                    );
+                    return Ok(());
+                }
+            };
+
+            // 2) 再创建主窗口。主窗口创建后默认为最上层（macOS 最后创建的窗口在上），
+            //    会盖住 splash。所以创建主窗口后，立即把 splash 提到最前面，确保用户
+            //    只看得到 splash 而看不到主窗口的加载过程。
+            if WebviewWindowBuilder::new(app, "main", WebviewUrl::External(parsed))
                 .title("Terminal Web")
                 .inner_size(1280.0, 800.0)
                 .decorations(false)
+                .background_color(theme_bg)
                 .build()
+                .is_err()
             {
-                // 主窗口创建成功
-            } else {
                 show_err(app, "无法创建主窗口，请检查系统是否禁用了应用创建窗口。");
                 return Ok(());
             }
+            // 把 splash 窗口提到最前面（盖住刚创建的主窗口的首帧白闪）
+            let _ = splash.set_focus();
+
+            // 3) 前端就绪后：先显示主窗口（此时它仍在 splashscreen 之下被盖住，即使 webview
+            //     首帧未就绪也看不见），再关闭 splashscreen，确保撤掉 splash 时主窗口已是深色内容。
+            let handle = app.handle().clone();
+            let on_ready = handle.clone();
+            let _ = handle.listen("app-ready", move |_event| {
+                if let Some(main) = on_ready.get_webview_window("main") {
+                    let _ = main.show();
+                    let _ = main.set_focus();
+                }
+                if let Some(splash) = on_ready.get_webview_window("splashscreen") {
+                    let _ = splash.close();
+                }
+            });
+
+            // 4) 兜底：若前端因异常未发出 app-ready，6 秒后先显示主窗口再关闭 splash
+            let fb = app.handle().clone();
+            std::thread::spawn(move || {
+                std::thread::sleep(std::time::Duration::from_secs(6));
+                if let Some(main) = fb.get_webview_window("main") {
+                    let _ = main.show();
+                }
+                if let Some(splash) = fb.get_webview_window("splashscreen") {
+                    let _ = splash.close();
+                }
+            });
 
             app.manage(Backend(std::sync::Mutex::new(child)));
             Ok(())

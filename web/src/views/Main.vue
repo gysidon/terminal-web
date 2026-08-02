@@ -207,7 +207,8 @@
 </template>
 
 <script setup>
-import { ref, computed, h, onMounted, onUnmounted, watch, nextTick } from 'vue';
+import { ref, computed, h, onMounted, onUnmounted, watch, nextTick, defineAsyncComponent } from 'vue';
+import { bus } from '../events.js';
 import {
   NButton, NIcon, NInput, NTree, NTabs, NTabPane, NSpace, NTag, NDropdown,
   NTooltip, NModal, NForm, NFormItem, NProgress, useMessage, useDialog
@@ -221,9 +222,10 @@ import {
 } from '@vicons/ionicons5';
 import { api, errMsg, pingConn, sysInfo, activity } from '../api.js';
 import ConnForm from '../components/ConnForm.vue';
-import TermPane from '../components/TermPane.vue';
-import SftpPane from '../components/SftpPane.vue';
-import ProcessPane from '../components/ProcessPane.vue';
+// 重型面板按需加载：xterm（TermPane）、SFTP/进程逻辑不再打进首屏入口 chunk
+const TermPane = defineAsyncComponent(() => import('../components/TermPane.vue'));
+const SftpPane = defineAsyncComponent(() => import('../components/SftpPane.vue'));
+const ProcessPane = defineAsyncComponent(() => import('../components/ProcessPane.vue'));
 import Settings from '../components/Settings.vue';
 import LogoIcon from '../components/LogoIcon.vue';
 import { store, loadSettings } from '../store.js';
@@ -773,6 +775,8 @@ onMounted(async () => {
   window.addEventListener('click', markActivity);
   window.addEventListener('keydown', markActivity);
   window.addEventListener('mousemove', markActivity);
+  // 外部导入/恢复备份后，侧边连接树自动刷新
+  bus.on('refresh-tree', loadAll);
 });
 
 // 切换 tab 或激活终端变为「已连接」时，立即刷新一次统计
