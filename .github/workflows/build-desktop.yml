@@ -119,12 +119,26 @@ jobs:
       # 若以后配置 Developer ID（$APPLE_SIGN_IDENTITY + $APPLE_API_* 用于 notarize），
       # 将 tauri.conf.json 中的 "-" 改为 "$APPLE_SIGN_IDENTITY" 并补 notarize 步骤即可。
 
+      # create-dmg 会在 bundle/ 下留下大量中间脚手架（bundle_dmg.sh、icon.icns、
+      # eula-resources-template.xml、template.applescript、rw.*.dmg 临时镜像、.DS_Store、
+      # 以及已嵌入 dmg 内的 TerminalWeb.app）。只把最终安装包挑选出来，避免垃圾文件被传进 Release。
+      - name: Stage release artifacts
+        shell: bash
+        run: |
+          mkdir -p dist-release
+          # macOS 最终 dmg（排除 create-dmg 临时 rw.*.dmg 读写镜像）
+          find desktop/src-tauri/target -path '*/bundle/dmg/*.dmg' ! -name 'rw.*.dmg' -exec cp {} dist-release/ \;
+          # Windows nsis / msi 安装包
+          find desktop/src-tauri/target -path '*/bundle/*' \( -name '*.msi' -o -name '*.exe' \) -exec cp {} dist-release/ \;
+          echo "::group::staged release artifacts"
+          ls -la dist-release/
+          echo "::endgroup::"
+
       - name: Upload bundle artifact
         uses: actions/upload-artifact@v4
         with:
           name: terminal-web-${{ matrix.bundle }}${{ matrix.target != '' && format('-{0}', matrix.target) || '' }}
-          # 开了 --target 后 bundle 路径变为 target/<triple>/release/bundle，用 ** 兼容有无 target 两种情况
-          path: desktop/src-tauri/target/**/release/bundle/**/*
+          path: dist-release/*
           if-no-files-found: warn
 
   # 汇总各平台安装包，创建 GitHub Release。
