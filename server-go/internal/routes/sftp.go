@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/url"
 	"path"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -65,6 +66,11 @@ func itoaBase(n, base int) string {
 func percentEncode(s string) string {
 	e := url.QueryEscape(s)
 	return strings.ReplaceAll(e, "+", "%20")
+}
+
+// shellQuote 将路径安全地包进单引号，转义内部的单引号，避免远端命令注入。
+func shellQuote(s string) string {
+	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
 }
 
 func sortItems(items []map[string]interface{}) {
@@ -289,21 +295,83 @@ func RegisterSftp(r chi.Router) {
 		}
 		_ = readJSON(req, &b)
 		target := normalizePath(b.Path)
+		// 目录：sftp 的 RemoveDirectory 只能删空目录，改用 rm -rf 递归删除（路径已 shellQuote 转义，防注入）
+		if b.IsDir {
+			client, err := sshx.GetClient(connID)
+			if err != nil {
+				writeError(w, 400, err.Error())
+				return
+			}
+			if out, rerr := sshx.RunCommand(client, "rm -rf "+shellQuote(target)); rerr != nil {
+				writeError(w, 400, "删除失败: "+rerr.Error()+" "+out)
+				return
+			}
+			writeJSON(w, 200, map[string]bool{"ok": true})
+			return
+		}
 		client, err := sshx.GetSftp(connID)
 		if err != nil {
 			writeError(w, 400, err.Error())
 			return
 		}
-		var derr error
-		if b.IsDir {
-			derr = client.RemoveDirectory(target)
-		} else {
-			derr = client.Remove(target)
-		}
-		if derr != nil {
+		if derr := client.Remove(target); derr != nil {
 			writeError(w, 400, derr.Error())
 			return
 		}
 		writeJSON(w, 200, map[string]bool{"ok": true})
+	})
+
+	// 解压：在远端执行 unzip / tar，把压缩包展开到 dest 目录；可选 chmod -R 权限。
+	r.Post("/api/sftp/{connId}/unzip", func(w http.ResponseWriter, req *http.Request) {
+		connID, _ := strconv.Atoi(strParam(req, "connId"))
+		var b struct {
+			Path string `json:"path"`
+			Dest string `json:"dest"`
+			Mode string `json:"mode"`
+		}
+		_ = readJSON(req, &b)
+		src := normalizePath(b.Path)
+		dest := normalizePath(b.Dest)
+		if dest == "" || dest == "/" {
+			writeError(w, 400, "目标目录不合法")
+			return
+		}
+		lower := strings.ToLower(src)
+		ext := strings.ToLower(path.Ext(src))
+		var cmd string
+		switch {
+		case ext == ".zip":
+			cmd = "unzip -o " + shellQuote(src) + " -d " + shellQuote(dest)
+		case strings.HasSuffix(lower, ".tar.gz"), ext == ".tgz":
+			cmd = "mkdir -p " + shellQuote(dest) + " && tar -xzf " + shellQuote(src) + " -C " + shellQuote(dest)
+		case ext == ".tar":
+			cmd = "mkdir -p " + shellQuote(dest) + " && tar -xf " + shellQuote(src) + " -C " + shellQuote(dest)
+		case strings.HasSuffix(lower, ".tar.bz2"), ext == ".tbz2":
+			cmd = "mkdir -p " + shellQuote(dest) + " && tar -xjf " + shellQuote(src) + " -C " + shellQuote(dest)
+		case strings.HasSuffix(lower, ".tar.xz"), ext == ".txz":
+			cmd = "mkdir -p " + shellQuote(dest) + " && tar -xJf " + shellQuote(src) + " -C " + shellQuote(dest)
+		default:
+			writeError(w, 400, "不支持的压缩格式: "+ext)
+			return
+		}
+		client, err := sshx.GetClient(connID)
+		if err != nil {
+			writeError(w, 400, err.Error())
+			return
+		}
+		if out, rerr := sshx.RunCommand(client, cmd); rerr != nil {
+			writeError(w, 400, "解压失败: "+rerr.Error()+" "+out)
+			return
+		}
+		// 可选：对解压出的内容递归设置权限（仅允许 3~4 位八进制）
+		if b.Mode != "" {
+			if ok, _ := regexp.MatchString(`^[0-7]{3,4}$`, b.Mode); ok {
+				if out, cerr := sshx.RunCommand(client, "chmod -R "+b.Mode+" "+shellQuote(dest)); cerr != nil {
+					writeError(w, 400, "解压成功但设置权限失败: "+cerr.Error()+" "+out)
+					return
+				}
+			}
+		}
+		writeJSON(w, 200, map[string]interface{}{"ok": true, "dest": dest})
 	})
 }

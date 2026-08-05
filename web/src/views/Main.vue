@@ -91,7 +91,7 @@
           display-directive="show"
         >
           <template v-if="s.type === 'sftp'">
-            <SftpPane :conn-id="s.connId" :conn-name="s.name" @open-terminal="onOpenTerminalFromSftp" />
+            <SftpPane :conn-id="s.connId" :conn-name="s.name" :active="activeTab === s.id" @open-terminal="onOpenTerminalFromSftp" />
           </template>
           <template v-else-if="s.type === 'process'">
             <ProcessPane :conn-id="s.connId" :conn-name="s.name" />

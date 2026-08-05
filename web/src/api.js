@@ -60,6 +60,12 @@ export async function sftpWrite(connId, path, content) {
   return data;
 }
 
+// 在远端解压压缩包到 dest 目录；mode 可选（3~4 位八进制，递归 chmod）
+export async function sftpUnzip(connId, path, dest, mode = '') {
+  const { data } = await api.post(`/api/sftp/${connId}/unzip`, { path, dest, mode });
+  return data;
+}
+
 export async function processList(connId) {
   const { data } = await api.get(`/api/process/${connId}`);
   return data;
