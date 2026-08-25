@@ -1,8 +1,10 @@
 package sshx
 
 import (
+	"bytes"
 	"database/sql"
 	"fmt"
+	"io"
 	"net"
 	"time"
 
@@ -413,4 +415,41 @@ func RunCommand(client *ssh.Client, cmd string) (string, error) {
 	defer session.Close()
 	out, err := session.CombinedOutput(cmd)
 	return string(out), err
+}
+
+// RunCommandStdin 执行命令并把 stdinStr 通过 stdin 管道喂给远端进程（用于 sudo -S 喂密码）。
+func RunCommandStdin(client *ssh.Client, cmd, stdinStr string) (string, error) {
+	session, err := client.NewSession()
+	if err != nil {
+		return "", err
+	}
+	defer session.Close()
+	stdin, err := session.StdinPipe()
+	if err != nil {
+		return "", err
+	}
+	var buf bytes.Buffer
+	session.Stdout = &buf
+	session.Stderr = &buf
+	if err := session.Start(cmd); err != nil {
+		return "", err
+	}
+	if stdinStr != "" {
+		_, _ = io.WriteString(stdin, stdinStr)
+	}
+	_ = stdin.Close()
+	werr := session.Wait()
+	return buf.String(), werr
+}
+
+// GetLoginPassword 返回解密后的 SSH 登录密码（仅 sudo 回退时使用，不外泄）。
+func GetLoginPassword(connID int) (string, error) {
+	conn, err := GetConnectionByID(connID)
+	if err != nil {
+		return "", err
+	}
+	if conn.PasswordEnc == "" {
+		return "", nil
+	}
+	return crypto.Decrypt(conn.PasswordEnc, crypto.DefaultKey())
 }

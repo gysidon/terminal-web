@@ -1,6 +1,9 @@
 package routes
 
 import (
+	"bytes"
+	"crypto/rand"
+	"encoding/hex"
 	"io"
 	"net/http"
 	"net/url"
@@ -12,6 +15,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/pkg/sftp"
+	"golang.org/x/crypto/ssh"
 
 	"terminal-web/server-go/internal/sshx"
 )
@@ -88,6 +92,79 @@ func sortItems(items []map[string]interface{}) {
 		}
 		return strings.Compare(items[i]["name"].(string), items[j]["name"].(string)) < 0
 	})
+}
+
+// isPermError 判断 SFTP 错误是否为权限拒绝（状态码 3，或消息含 permission）。
+func isPermError(err error) bool {
+	if err == nil {
+		return false
+	}
+	if se, ok := err.(*sftp.StatusError); ok && se.Code == 3 {
+		return true
+	}
+	return strings.Contains(strings.ToLower(err.Error()), "permission")
+}
+
+// randTempName 生成远端 /tmp 下的随机临时文件名（sudo 写入中转用）。
+func randTempName() string {
+	b := make([]byte, 12)
+	_, _ = rand.Read(b)
+	return "/tmp/.tw-write-" + hex.EncodeToString(b) + ".tmp"
+}
+
+// runSudoFallback 先尝试免密 sudo（-n），失败再用 -S 从 stdin 喂密码重试。
+// tmpl 中的 {{SUDO}} 占位符会被替换为对应的 sudo 前缀。
+func runSudoFallback(client *ssh.Client, tmpl, password string) (string, error) {
+	if out, err := sshx.RunCommand(client, strings.ReplaceAll(tmpl, "{{SUDO}}", "sudo -n")); err == nil {
+		return out, nil
+	}
+	return sshx.RunCommandStdin(client, strings.ReplaceAll(tmpl, "{{SUDO}}", "sudo -S -p ''"), password+"\n")
+}
+
+// sudoWriteStream 先把 r 的内容经 SFTP 写到 /tmp 临时文件，再用 sudo tee 落到目标路径。
+// 用于普通 SFTP 写遇权限拒绝时的提权回退（无开关，默认开启）。
+func sudoWriteStream(sftpClient *sftp.Client, connID int, target string, r io.Reader) (string, bool) {
+	tmp := randTempName()
+	tf, terr := sftpClient.Create(tmp)
+	if terr != nil {
+		return "创建临时文件失败: " + terr.Error(), false
+	}
+	if _, cerr := io.Copy(tf, r); cerr != nil {
+		_ = tf.Close()
+		_ = sftpClient.Remove(tmp)
+		return "写入临时文件失败: " + cerr.Error(), false
+	}
+	_ = tf.Close()
+	defer func() { _ = sftpClient.Remove(tmp) }()
+	sshClient, serr := sshx.GetClient(connID)
+	if serr != nil {
+		return "获取 SSH 连接失败: " + serr.Error(), false
+	}
+	pw, perr := sshx.GetLoginPassword(connID)
+	if perr != nil {
+		return "读取登录凭据失败: " + perr.Error(), false
+	}
+	tmpl := "cat " + shellQuote(tmp) + " | {{SUDO}} tee " + shellQuote(target) + " > /dev/null"
+	if out, e2 := runSudoFallback(sshClient, tmpl, pw); e2 != nil {
+		return "sudo 写入失败: " + e2.Error() + " " + out + "（请确认该账号有 sudo 权限，建议配置 NOPASSWD，或改用有写权限的账号连接）", false
+	}
+	return "", true
+}
+
+// sudoShell 以 sudo 回退方式执行一条命令（mkdir/rename/delete 的权限升级）。
+func sudoShell(connID int, tmpl string) (string, bool) {
+	sshClient, err := sshx.GetClient(connID)
+	if err != nil {
+		return "获取 SSH 连接失败: " + err.Error(), false
+	}
+	pw, err := sshx.GetLoginPassword(connID)
+	if err != nil {
+		return "读取登录凭据失败: " + err.Error(), false
+	}
+	if out, serr := runSudoFallback(sshClient, tmpl, pw); serr != nil {
+		return "sudo 执行失败: " + serr.Error() + " " + out + "（请确认该账号有 sudo 权限，建议配置 NOPASSWD）", false
+	}
+	return "", true
 }
 
 // RegisterSftp 注册 SFTP 接口（受保护）。
@@ -189,11 +266,29 @@ func RegisterSftp(r chi.Router) {
 		}
 		f, err := client.Create(file)
 		if err != nil {
+			if isPermError(err) {
+				if msg, ok := sudoWriteStream(client, connID, file, strings.NewReader(b.Content)); ok {
+					writeJSON(w, 200, map[string]bool{"ok": true})
+					return
+				} else {
+					writeError(w, 400, "无写权限，且"+msg)
+					return
+				}
+			}
 			writeError(w, 400, err.Error())
 			return
 		}
 		defer f.Close()
 		if _, err := f.Write([]byte(b.Content)); err != nil {
+			if isPermError(err) {
+				if msg, ok := sudoWriteStream(client, connID, file, strings.NewReader(b.Content)); ok {
+					writeJSON(w, 200, map[string]bool{"ok": true})
+					return
+				} else {
+					writeError(w, 400, "无写权限，且"+msg)
+					return
+				}
+			}
 			writeError(w, 400, err.Error())
 			return
 		}
@@ -230,6 +325,19 @@ func RegisterSftp(r chi.Router) {
 			target := path.Join(dir, part.FileName())
 			f, ferr := client.Create(target)
 			if ferr != nil {
+				if isPermError(ferr) {
+					var buf bytes.Buffer
+					if _, rerr := io.Copy(&buf, part); rerr == nil {
+						_ = part.Close()
+						if msg, ok := sudoWriteStream(client, connID, target, &buf); ok {
+							uploaded = append(uploaded, target)
+							continue
+						} else {
+							writeError(w, 400, "无写权限，且"+msg)
+							return
+						}
+					}
+				}
 				_ = part.Close()
 				writeError(w, 400, ferr.Error())
 				return
@@ -260,6 +368,21 @@ func RegisterSftp(r chi.Router) {
 			return
 		}
 		if err := client.Mkdir(target); err != nil {
+			if isPermError(err) {
+				conn, cerr := sshx.GetConnectionByID(connID)
+				if cerr != nil {
+					writeError(w, 400, "无权限创建目录，且获取连接信息失败: "+cerr.Error())
+					return
+				}
+				tmpl := "{{SUDO}} mkdir -p " + shellQuote(target) + " && {{SUDO}} chown " + conn.Username + " " + shellQuote(target)
+				if msg, ok := sudoShell(connID, tmpl); ok {
+					writeJSON(w, 200, map[string]bool{"ok": true})
+					return
+				} else {
+					writeError(w, 400, "无权限创建目录，且"+msg)
+					return
+				}
+			}
 			writeError(w, 400, err.Error())
 			return
 		}
@@ -281,6 +404,15 @@ func RegisterSftp(r chi.Router) {
 			return
 		}
 		if err := client.Rename(from, to); err != nil {
+			if isPermError(err) {
+				if msg, ok := sudoShell(connID, "{{SUDO}} mv "+shellQuote(from)+" "+shellQuote(to)); ok {
+					writeJSON(w, 200, map[string]bool{"ok": true})
+					return
+				} else {
+					writeError(w, 400, "无权限重命名，且"+msg)
+					return
+				}
+			}
 			writeError(w, 400, err.Error())
 			return
 		}
@@ -303,6 +435,15 @@ func RegisterSftp(r chi.Router) {
 				return
 			}
 			if out, rerr := sshx.RunCommand(client, "rm -rf "+shellQuote(target)); rerr != nil {
+				if isPermError(rerr) {
+					if msg, ok := sudoShell(connID, "{{SUDO}} rm -rf "+shellQuote(target)); ok {
+						writeJSON(w, 200, map[string]bool{"ok": true})
+						return
+					} else {
+						writeError(w, 400, "删除失败（sudo 提权也失败）: "+msg)
+						return
+					}
+				}
 				writeError(w, 400, "删除失败: "+rerr.Error()+" "+out)
 				return
 			}
@@ -315,6 +456,15 @@ func RegisterSftp(r chi.Router) {
 			return
 		}
 		if derr := client.Remove(target); derr != nil {
+			if isPermError(derr) {
+				if msg, ok := sudoShell(connID, "{{SUDO}} rm -f "+shellQuote(target)); ok {
+					writeJSON(w, 200, map[string]bool{"ok": true})
+					return
+				} else {
+					writeError(w, 400, "无权限删除，且"+msg)
+					return
+				}
+			}
 			writeError(w, 400, derr.Error())
 			return
 		}
